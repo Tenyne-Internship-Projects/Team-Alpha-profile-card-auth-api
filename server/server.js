@@ -27,7 +27,6 @@ if (isProduction && process.env.SENTRY_DSN) {
 const app = express();
 connectDB();
 
-// These must go BEFORE routes
 if (isProduction) {
   app.use(Sentry.Handlers.requestHandler());
   app.use(Sentry.Handlers.tracingHandler()); // optional
@@ -64,4 +63,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: "Server Error" });
 });
 
-module.exports = app;
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});

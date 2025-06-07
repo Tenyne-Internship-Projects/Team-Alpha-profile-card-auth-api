@@ -104,6 +104,7 @@ const updateUserProfile = async (req, res) => {
       where: { id: userId },
       data: {
         fullname,
+        ...(hashedPassword && { password: hashedPassword }),
         profile: {
           update: {
             fullName: fullname,
@@ -120,7 +121,6 @@ const updateUserProfile = async (req, res) => {
             linkedIn,
             github,
             primaryEmail,
-            password: hashedPassword,
             phoneNumber,
             salaryExpectation: salaryExpectation
               ? Number(salaryExpectation)

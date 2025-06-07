@@ -1,41 +1,14 @@
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 const generateToken = require("../utils/generateToken");
+const { sendEmail } = require("../utils/mailer");
 
 const prisma = new PrismaClient();
 
-// Register User
+/// Register User
 const registerUser = async (req, res) => {
   try {
-    const {
-      fullname,
-      email,
-      password,
-      gender,
-      age,
-      dateOfBirth,
-      profession,
-      specialization,
-      location,
-      bio,
-      skills,
-      linkedIn,
-      github,
-      primaryEmail,
-      phoneNumber,
-      salaryExpectation,
-    } = req.body;
-
-    const avatarFile = req.files?.avatar?.[0];
-    const documentFiles = req.files?.documents || [];
-
-    const avatarUrl = avatarFile
-      ? `/uploads/badges/${avatarFile.filename}`
-      : null;
-
-    const documents = documentFiles.map(
-      (file) => `/uploads/badges/${file.filename}`
-    );
+    const { fullname, email, password } = req.body;
 
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
@@ -44,49 +17,41 @@ const registerUser = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Create user with verified default false (make sure Prisma schema has this)
     const newUser = await prisma.user.create({
       data: {
         fullname,
         email,
         password: hashedPassword,
-        profile: {
-          create: {
-            fullName: fullname,
-            gender,
-            age: Number(age),
-            dateOfBirth: new Date(dateOfBirth),
-            profession,
-            specialization,
-            location,
-            bio,
-            skills: skills ? JSON.parse(skills) : [],
-            avatarUrl,
-            documents,
-            linkedIn,
-            github,
-            primaryEmail,
-            phoneNumber,
-            salaryExpectation: salaryExpectation
-              ? Number(salaryExpectation)
-              : null,
-          },
-        },
-      },
-      include: {
-        profile: true,
+        verified: false,
       },
     });
 
-    const token = generateToken(newUser.id);
+    // Generate email verification token with expiry (e.g., 1 day)
+    const verificationToken = generateToken(newUser.id, { expiresIn: "1d" });
 
+    // Prepare verification URL (adjust your frontend/base URL accordingly)
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+
+    // Send verification email
+    const message = `
+      <h1>Email Verification</h1>
+      <p>Hello ${newUser.fullname},</p>
+      <p>Thank you for registering! Please verify your email by clicking the link below:</p>
+      <a href="${verificationUrl}">Verify Email</a>
+      <p>This link expires in 24 hours.</p>
+    `;
+
+    await sendEmail(newUser.email, "Verify your email", message);
+
+    // Respond without login token - must verify first
     return res.status(201).json({
-      message: "User registered successfully",
-      token,
+      message:
+        "User registered successfully. Please check your email to verify your account.",
       user: {
         id: newUser.id,
         email: newUser.email,
         fullname: newUser.fullname,
-        profile: newUser.profile,
       },
     });
   } catch (err) {
@@ -98,35 +63,88 @@ const registerUser = async (req, res) => {
   }
 };
 
+// Verify Email Controller
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res
+        .status(400)
+        .json({ message: "Verification token is required" });
+    }
+
+    // Decode and verify token
+    const decoded = require("jsonwebtoken").verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    const userId = decoded.id;
+
+    // Find user
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({ message: "User already verified" });
+    }
+
+    // Update user isVerified to true
+    await prisma.user.update({
+      where: { id: userId },
+      data: { isVerified: true },
+    });
+
+    return res.status(200).json({ message: "Email verified successfully" });
+  } catch (err) {
+    console.error("[Verify Email Error]", err);
+    // Handle token expiration or invalid token errors
+    if (err.name === "TokenExpiredError") {
+      return res.status(400).json({ message: "Verification token expired" });
+    }
+    if (err.name === "JsonWebTokenError") {
+      return res.status(400).json({ message: "Invalid verification token" });
+    }
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 // Login
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    return res.status(400).json({ message: "Invalid email or password" });
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Invalid email or password
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
+
+    // User is not verified
+    if (!user.isVerified) {
+      return res
+        .status(403)
+        .json({ message: "Please verify your email to login" });
+    }
+
+    const token = generateToken(user.id);
+
+    return res.status(200).json({
+      message: "Login successful",
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+      },
+    });
+  } catch (err) {
+    console.error("[Login Error]", err);
+    res.status(500).json({ message: "Internal server error" });
   }
-
-  const validPassword = await bcrypt.compare(password, user.password);
-  if (!validPassword) {
-    return res.status(400).json({ message: "Invalid email or password" });
-  }
-
-  const token = generateToken(user.id);
-
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { token },
-  });
-
-  return res.status(200).json({
-    message: "Login successful",
-    token,
-    user: {
-      id: user.id,
-      email: user.email,
-    },
-  });
 };
 
 // Logout
@@ -143,6 +161,7 @@ const logout = async (req, res) => {
 
 module.exports = {
   registerUser,
+  verifyEmail,
   login,
   logout,
 };
