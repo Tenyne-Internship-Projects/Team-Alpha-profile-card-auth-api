@@ -3,7 +3,7 @@ const nodemailer = require("nodemailer");
 require("dotenv").config();
 // Create transporter
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST, // e.g., email-smtp.eu-north-1.amazonaws.com
+  host: process.env.SMTP_HOST,
   port: parseInt(process.env.SMTP_PORT, 10), // 587
   secure: false, // TLS (false means STARTTLS)
   auth: {

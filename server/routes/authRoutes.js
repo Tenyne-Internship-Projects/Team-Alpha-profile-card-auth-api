@@ -5,12 +5,21 @@ const {
   verifyEmail,
   login,
   logout,
+  resendVerificationEmail,
+  requestPasswordReset,
+  resetPassword,
 } = require("../controllers/auth.controller");
 const userController = require("../controllers/user.controller");
 const upload = require("../middlewares/uploads");
 const loginLimiter = require("../middlewares/rateLimiter");
 const validateRequest = require("../validators/validateRequest");
 const { profileUpdateSchema } = require("../validators/profileValidator");
+const {
+  registerSchema,
+  loginSchema,
+  passwordResetSchema,
+  requestPasswordResetSchema,
+} = require("../validators/authValidator");
 
 const router = express.Router();
 
@@ -20,7 +29,7 @@ router.get("/test", (req, res) => {
 
 router.post(
   "/register",
-
+  validateRequest(registerSchema),
   upload.fields([
     { name: "avatar", maxCount: 1 },
     { name: "documents", maxCount: 10 },
@@ -38,8 +47,18 @@ router.put(
   userController.updateUserProfile
 );
 
+// Authentication Routes
+router.post("/login", loginLimiter, validateRequest(loginSchema), login);
 router.get("/verify-email", verifyEmail);
-router.post("/login", loginLimiter, login);
 router.post("/logout", logout);
+
+// Email Verification & Password Reset Routes
+router.post("/resend-verification", resendVerificationEmail);
+router.post("/request-password-reset", requestPasswordReset);
+router.post(
+  "/request-password-reset",
+  validateRequest(requestPasswordResetSchema),
+  requestPasswordReset
+);
 
 module.exports = router;

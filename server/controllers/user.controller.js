@@ -2,52 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
 
-// Get all users
-const getAllUsers = async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({
-      include: { profile: true },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return res.status(200).json({
-      message: "All users fetched successfully",
-      count: users.length,
-      users,
-    });
-  } catch (err) {
-    console.error("Error fetching users:", err);
-    return res.status(500).json({
-      message: "Internal server error",
-      error: err.message,
-    });
-  }
-};
-
-// Get user by ID
-const getUserProfile = async (req, res) => {
-  const { userId } = req.params;
-
-  try {
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { profile: true },
-    });
-
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    return res.status(200).json({
-      message: "User profile fetched successfully",
-      user,
-    });
-  } catch (err) {
-    console.error("Error fetching user profile:", err);
-    return res.status(500).json({
-      message: "Internal server error",
-      error: err.message,
-    });
-  }
-};
+const isVerifiedProfile = require("../utils/verifiedProfile");
 
 // Update user profile
 const updateUserProfile = async (req, res) => {
@@ -73,33 +28,27 @@ const updateUserProfile = async (req, res) => {
   const avatarFile = req.files?.avatar?.[0];
   const documentFiles = req.files?.documents || [];
 
-  // Only set avatarUrl if a new avatar is uploaded
   const avatarUrl = avatarFile
     ? `/uploads/badges/${avatarFile.filename}`
     : undefined;
-
-  // Only set documents if new ones are uploaded
-  const documents =
-    documentFiles.length > 0
-      ? documentFiles.map((file) => `/uploads/badges/${file.filename}`)
-      : undefined;
+  const documents = documentFiles.length
+    ? documentFiles.map((file) => `/uploads/badges/${file.filename}`)
+    : undefined;
 
   try {
-    // Check if user exists
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { profile: true },
     });
 
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    // Hash password only if provided
-    let hashedPassword;
-    if (password) {
-      hashedPassword = await bcrypt.hash(password, 10);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // Update user & profile
+    const hashedPassword = password
+      ? await bcrypt.hash(password, 10)
+      : undefined;
+
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -109,22 +58,20 @@ const updateUserProfile = async (req, res) => {
           update: {
             fullName: fullname,
             gender,
-            age: age ? Number(age) : undefined,
-            dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+            age: Number(age),
+            dateOfBirth: new Date(dateOfBirth),
             profession,
             specialization,
             location,
             bio,
-            skills: skills ? JSON.parse(skills) : undefined,
-            avatarUrl,
-            documents,
+            skills: JSON.parse(skills),
+            ...(avatarUrl && { avatarUrl }),
+            ...(documents && { documents }),
             linkedIn,
             github,
             primaryEmail,
             phoneNumber,
-            salaryExpectation: salaryExpectation
-              ? Number(salaryExpectation)
-              : undefined,
+            salaryExpectation: Number(salaryExpectation),
           },
         },
       },
@@ -144,22 +91,168 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
+// Get all users
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({ include: { profile: true } });
+    return res.status(200).json(users);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get single user by ID
+const getUserProfile = async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json(user);
+  } catch (err) {
+    console.error("Error fetching user profile:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 // Delete user account
 const deleteUserAccount = async (req, res) => {
   const { userId } = req.params;
-
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-
-    if (!user) return res.status(404).json({ message: "User not found" });
-
     await prisma.user.delete({ where: { id: userId } });
-
     return res
       .status(200)
       .json({ message: "User account deleted successfully" });
   } catch (err) {
     console.error("Error deleting user account:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Toggle availability status
+const toggleAvailability = async (req, res) => {
+  const { userId } = req.params;
+  const { isAvailable } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+
+    if (!user || !user.profile) {
+      return res.status(404).json({ message: "User or profile not found" });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        profile: {
+          update: {
+            isAvailable: Boolean(isAvailable),
+          },
+        },
+      },
+      include: { profile: true },
+    });
+
+    return res.status(200).json({
+      message: `Availability updated to ${updatedUser.profile.isAvailable}`,
+      user: updatedUser,
+    });
+  } catch (err) {
+    console.error("Error toggling availability:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+
+// Get user badges — only for verified users
+const getUserBadges = async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    const isVerified = await isVerifiedProfile(userId);
+    if (!isVerified) {
+      return res.status(403).json({
+        message: "You must verify your email to view badges.",
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: { select: { badges: true } } },
+    });
+
+    if (!user || !user.profile) {
+      return res.status(404).json({ message: "User or profile not found" });
+    }
+
+    return res.status(200).json({ badges: user.profile.badges });
+  } catch (err) {
+    console.error("Error fetching badges:", err);
+    return res.status(500).json({
+      message: "Internal server error",
+      error: err.message,
+    });
+  }
+};
+
+// Upload badge — only for verified users
+const uploadBadge = async (req, res) => {
+  const { userId } = req.params;
+  const badgeFile = req.file; // assuming single file upload middleware
+
+  try {
+    const isVerified = await isVerifiedProfile(userId);
+    if (!isVerified) {
+      return res.status(403).json({
+        message: "Only verified users can upload badges.",
+      });
+    }
+
+    if (!badgeFile) {
+      return res.status(400).json({ message: "No badge file uploaded." });
+    }
+
+    // Save badge file path and associate with profile badges
+    const badgeUrl = `/uploads/badges/${badgeFile.filename}`;
+
+    // Fetch current badges
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: true },
+    });
+
+    if (!user || !user.profile) {
+      return res.status(404).json({ message: "User or profile not found" });
+    }
+
+    // Append new badge to existing badges array or create new array
+    const currentBadges = user.profile.badges || [];
+    const updatedBadges = [...currentBadges, badgeUrl];
+
+    // Update profile badges
+    await prisma.profile.update({
+      where: { id: user.profile.id },
+      data: { badges: updatedBadges },
+    });
+
+    return res.status(201).json({
+      message: "Badge uploaded successfully",
+      badgeUrl,
+    });
+  } catch (err) {
+    console.error("Error uploading badge:", err);
     return res.status(500).json({
       message: "Internal server error",
       error: err.message,
@@ -171,5 +264,8 @@ module.exports = {
   getAllUsers,
   getUserProfile,
   updateUserProfile,
+  toggleAvailability,
   deleteUserAccount,
+  getUserBadges,
+  uploadBadge,
 };
