@@ -12,7 +12,7 @@ const registerUser = async (req, res) => {
     const { fullname, email, password } = req.body;
 
     const isStrongPassword = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$/.test(
-      newPassword
+      Password
     );
     if (!isStrongPassword) {
       return res.status(400).json({
