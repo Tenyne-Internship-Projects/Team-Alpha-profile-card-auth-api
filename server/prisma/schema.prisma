@@ -13,26 +13,32 @@ model User {
   email     String   @unique
   password  String   
   createdAt DateTime @default(now())
-   verified  Boolean  @default(false)
+  verified Boolean @default(false)
   codes     VerificationCode[]
 
   profile   Profile?
   @@map("users")
 }
 
-model VerificationCode {
+model User {
   id        String   @id @default(uuid())
-  code      String
-  expiresAt DateTime
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullname  String 
+  email     String   @unique
+  password  String   
   createdAt DateTime @default(now())
+  verified  Boolean  @default(false)
+
+  profile   Profile? @relation("UserProfile", fields: [id], references: [userId])
+
+  codes     VerificationCode[]
+
+  @@map("users")
 }
 
 model Profile {
   id              String   @id @default(uuid())
   userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id])
+  user            User     @relation("UserProfile", fields: [userId], references: [id])
 
   fullName        String
   gender          String
@@ -54,6 +60,6 @@ model Profile {
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  isAvailable     Boolean  @default(true) 
 }
-
 

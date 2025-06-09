@@ -1,5 +1,6 @@
 const Joi = require("joi");
 
+// Schema for full profile update
 const profileUpdateSchema = Joi.object({
   fullname: Joi.string().required().messages({
     "any.required": "Full name is required",
@@ -18,7 +19,7 @@ const profileUpdateSchema = Joi.object({
       try {
         const parsed = JSON.parse(value);
         if (!Array.isArray(parsed)) throw new Error();
-        return value;
+        return parsed;
       } catch {
         return helpers.error("any.invalid");
       }
@@ -31,10 +32,19 @@ const profileUpdateSchema = Joi.object({
     }),
   linkedIn: Joi.string().uri().optional().allow(""),
   github: Joi.string().uri().optional().allow(""),
-  primaryEmail: Joi.string().email().required(),
+  primaryEmail: Joi.string().email().optional(),
   phoneNumber: Joi.string().required(),
   salaryExpectation: Joi.number(),
   password: Joi.string().min(6).optional(),
+  isAvailable: Joi.boolean().optional(), // Only used in PUT profile update
 });
 
-module.exports = { profileUpdateSchema };
+// Schema for availability toggle (PATCH)
+const availabilityToggleSchema = Joi.object({
+  isAvailable: Joi.boolean().required(), // Only accepts true or false
+});
+
+module.exports = {
+  profileUpdateSchema,
+  availabilityToggleSchema,
+};

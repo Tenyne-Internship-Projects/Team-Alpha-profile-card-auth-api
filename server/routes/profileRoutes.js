@@ -4,8 +4,21 @@ const {
   getUserProfile,
   updateUserProfile,
   deleteUserAccount,
+  toggleAvailability,
+  getUserBadges,
+  uploadBadge,
+  updateAvatar,
+  updateProfileWithFiles,
 } = require("../controllers/user.controller");
-const upload = require("../middlewares/uploads");
+
+const { uploads, convertToBase64, convertMultipleToBase64 } = require("../middlewares/uploads");
+
+
+const validateRequest = require("../validators/validateRequest");
+const {
+  profileUpdateSchema,
+  availabilityToggleSchema,
+} = require("../validators/profileValidator");
 
 const router = express.Router();
 
@@ -13,25 +26,47 @@ router.get("/test", (req, res) => {
   res.send("Route working");
 });
 
-// @route   GET /api/users
 router.get("/", getAllUsers);
-
-// @route   GET /api/users/:userId
 router.get("/:userId", getUserProfile);
 
-// @route   PUT /api/users/:userId
 router.put(
   "/:userId",
-  upload.fields([
+  uploads.fields([
     { name: "avatar", maxCount: 1 },
     { name: "documents", maxCount: 10 },
   ]),
+  validateRequest(profileUpdateSchema),
   updateUserProfile
 );
 
-// @route   DELETE /api/users/:userId
-router.delete("/:userId", deleteUserAccount);
+router.patch(
+  "/:userId/availability",
+  validateRequest(availabilityToggleSchema),
+  toggleAvailability
+);
 
-module.exports = router;
+router.get("/:userId/badges", getUserBadges);
+router.post("/:userId/badges", uploads.single("badge"), uploadBadge);
+
+// Optional: Add schema validation if applicable
+router.put(
+  "/profile/avatar",
+  uploads.single("avatar"),
+  convertToBase64,
+  updateAvatar
+);
+
+router.put(
+  "/profile",
+  uploads.fields([
+    { name: "avatar", maxCount: 1 },
+    { name: "documents", maxCount: 5 },
+  ]),
+  convertMultipleToBase64,
+  validateRequest(profileUpdateSchema),
+  updateProfileWithFiles
+);
+
+router.delete("/:userId", deleteUserAccount);
 
 module.exports = router;
