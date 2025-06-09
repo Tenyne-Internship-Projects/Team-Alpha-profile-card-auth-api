@@ -1,6 +1,11 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
+// const {
+//   safeField,
+//   safeArray,
+//   calculateAge,
+// } = require("../utils/sanitizeInput");
 
 const isVerifiedProfile = require("../utils/verifiedProfile");
 
@@ -28,19 +33,22 @@ const updateUserProfile = async (req, res) => {
   const avatarFile = req.files?.avatar?.[0];
   const documentFiles = req.files?.documents || [];
 
-  const avatarUrl = avatarFile ? `/uploads/badges/${avatarFile.filename}` : null;
+  const avatarUrl = avatarFile
+    ? `/uploads/badges/${avatarFile.filename}`
+    : null;
 
   const documents = documentFiles
-  ? documentFiles.map((file) => `/uploads/badges/${file.filename}`)
-  : null;
-
+    ? documentFiles.map((file) => `/uploads/badges/${file.filename}`)
+    : null;
 
   const isValidDate = (d) => d instanceof Date && !isNaN(d);
   const parsedDOB = new Date(dateOfBirth);
   const safeDOB = isValidDate(parsedDOB) ? parsedDOB : new Date();
 
   const safeAge = !isNaN(Number(age)) ? Number(age) : 0;
-  const safeSalary = !isNaN(Number(salaryExpectation)) ? Number(salaryExpectation) : undefined;
+  const safeSalary = !isNaN(Number(salaryExpectation))
+    ? Number(salaryExpectation)
+    : undefined;
 
   let parsedSkills;
   try {
@@ -86,7 +94,9 @@ const updateUserProfile = async (req, res) => {
                 github: github || "",
                 primaryEmail: primaryEmail || "",
                 phoneNumber: phoneNumber || "",
-                ...(safeSalary !== undefined && { salaryExpectation: safeSalary }),
+                ...(safeSalary !== undefined && {
+                  salaryExpectation: safeSalary,
+                }),
               },
             }
           : {
@@ -128,7 +138,6 @@ const updateUserProfile = async (req, res) => {
 
 const updateAvatar = async (req, res) => {
   try {
-    // Sample logic: suppose you're using base64 avatar upload
     const { userId } = req.user;
     const { avatarBase64 } = req.body;
 
@@ -152,10 +161,8 @@ const updateProfileWithFiles = async (req, res) => {
   try {
     const { userId } = req.user;
 
-    // Assuming you're receiving things like name, bio, etc.
     const { fullName, bio, availability } = req.body;
 
-    // And if you're uploading files (e.g., avatar or badge), it should have already been converted to base64 by middleware
     const { avatarBase64, badgeBase64 } = req.body;
 
     const updatedUser = await prisma.user.update({
@@ -178,8 +185,6 @@ const updateProfileWithFiles = async (req, res) => {
     res.status(500).json({ error: "Server error updating profile" });
   }
 };
-
-
 
 // Get all users
 const getAllUsers = async (req, res) => {
@@ -215,14 +220,12 @@ const getUserProfile = async (req, res) => {
 // Delete user account
 const deleteUserAccount = async (req, res) => {
   const { userId } = req.params;
-  
+
   try {
-
-     await prisma.profile.deleteMany({
+    await prisma.profile.deleteMany({
       where: { userId },
-     })
+    });
 
-     
     await prisma.user.delete({ where: { id: userId } });
     return res
       .status(200)
