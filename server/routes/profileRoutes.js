@@ -7,9 +7,13 @@ const {
   toggleAvailability,
   getUserBadges,
   uploadBadge,
+  updateAvatar,
+  updateProfileWithFiles,
 } = require("../controllers/user.controller");
 
-const upload = require("../middlewares/uploads");
+const { uploads, convertToBase64, convertMultipleToBase64 } = require("../middlewares/uploads");
+
+
 const validateRequest = require("../validators/validateRequest");
 const {
   profileUpdateSchema,
@@ -22,19 +26,12 @@ router.get("/test", (req, res) => {
   res.send("Route working");
 });
 
-// @route   GET /api/users
-// @desc    Get all users
 router.get("/", getAllUsers);
-
-// @route   GET /api/users/:userId
-// @desc    Get user profile by ID
 router.get("/:userId", getUserProfile);
 
-// @route   PUT /api/users/:userId
-// @desc    Update user profile
 router.put(
   "/:userId",
-  upload.fields([
+  uploads.fields([
     { name: "avatar", maxCount: 1 },
     { name: "documents", maxCount: 10 },
   ]),
@@ -42,30 +39,34 @@ router.put(
   updateUserProfile
 );
 
-// @route   PATCH /api/users/:userId/availability
-// @desc    Toggle availability status
 router.patch(
   "/:userId/availability",
   validateRequest(availabilityToggleSchema),
   toggleAvailability
 );
 
-// --- Badge routes ---
-
-// @route   GET /api/users/:userId/badges
-// @desc    Get badges of verified user
 router.get("/:userId/badges", getUserBadges);
+router.post("/:userId/badges", uploads.single("badge"), uploadBadge);
 
-// @route   POST /api/users/:userId/badges
-// @desc    Upload badge for verified user
-router.post(
-  "/:userId/badges",
-  upload.single("badge"), // expects a single file named 'badge'
-  uploadBadge
+// Optional: Add schema validation if applicable
+router.put(
+  "/profile/avatar",
+  uploads.single("avatar"),
+  convertToBase64,
+  updateAvatar
 );
 
-// @route   DELETE /api/users/:userId
-// @desc    Delete user account
+router.put(
+  "/profile",
+  uploads.fields([
+    { name: "avatar", maxCount: 1 },
+    { name: "documents", maxCount: 5 },
+  ]),
+  convertMultipleToBase64,
+  validateRequest(profileUpdateSchema),
+  updateProfileWithFiles
+);
+
 router.delete("/:userId", deleteUserAccount);
 
 module.exports = router;

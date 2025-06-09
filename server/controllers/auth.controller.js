@@ -177,14 +177,7 @@ const login = async (req, res) => {
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-
-    // User is not verified
-    if (!user.verified) {
-      return res
-        .status(403)
-        .json({ message: "Please verify your email to login" });
-    }
-
+    // Check if user is verified
     const token = generateToken(user.id);
 
     return res.status(200).json({

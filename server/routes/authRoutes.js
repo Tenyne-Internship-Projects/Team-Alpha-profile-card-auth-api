@@ -10,7 +10,7 @@ const {
   resetPassword,
 } = require("../controllers/auth.controller");
 const userController = require("../controllers/user.controller");
-const upload = require("../middlewares/uploads");
+const { uploads } = require("../middlewares/uploads");
 const loginLimiter = require("../middlewares/rateLimiter");
 const validateRequest = require("../validators/validateRequest");
 const { profileUpdateSchema } = require("../validators/profileValidator");
@@ -30,7 +30,7 @@ router.get("/test", (req, res) => {
 router.post(
   "/register",
   validateRequest(registerSchema),
-  upload.fields([
+  uploads.fields([
     { name: "avatar", maxCount: 1 },
     { name: "documents", maxCount: 10 },
   ]),
@@ -39,7 +39,7 @@ router.post(
 
 router.put(
   "/users/:userId",
-  upload.fields([
+  uploads.fields([
     { name: "avatar", maxCount: 1 },
     { name: "documents", maxCount: 5 },
   ]),

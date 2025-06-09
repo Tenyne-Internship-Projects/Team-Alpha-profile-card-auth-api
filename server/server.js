@@ -2,6 +2,17 @@ require("./instrument");
 require("dotenv").config();
 require("events").EventEmitter.defaultMaxListeners = 20;
 
+const fs   = require("fs");
+const path = require("path");
+
+
+const badgeDir = path.join(__dirname, "uploads", "badges");
+
+if (!fs.existsSync(badgeDir)) {
+  fs.mkdirSync(badgeDir, { recursive: true });
+  console.log("[Init] Created uploads/badges directory");
+}
+
 const express = require("express");
 const cors = require("cors");
 const { connectDB } = require("./config/db");

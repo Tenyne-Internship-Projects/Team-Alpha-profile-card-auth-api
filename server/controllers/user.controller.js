@@ -28,12 +28,26 @@ const updateUserProfile = async (req, res) => {
   const avatarFile = req.files?.avatar?.[0];
   const documentFiles = req.files?.documents || [];
 
-  const avatarUrl = avatarFile
-    ? `/uploads/badges/${avatarFile.filename}`
-    : undefined;
-  const documents = documentFiles.length
-    ? documentFiles.map((file) => `/uploads/badges/${file.filename}`)
-    : undefined;
+  const avatarUrl = avatarFile ? `/uploads/badges/${avatarFile.filename}` : null;
+
+  const documents = documentFiles
+  ? documentFiles.map((file) => `/uploads/badges/${file.filename}`)
+  : null;
+
+
+  const isValidDate = (d) => d instanceof Date && !isNaN(d);
+  const parsedDOB = new Date(dateOfBirth);
+  const safeDOB = isValidDate(parsedDOB) ? parsedDOB : new Date();
+
+  const safeAge = !isNaN(Number(age)) ? Number(age) : 0;
+  const safeSalary = !isNaN(Number(salaryExpectation)) ? Number(salaryExpectation) : undefined;
+
+  let parsedSkills;
+  try {
+    parsedSkills = Array.isArray(skills) ? skills : JSON.parse(skills);
+  } catch {
+    parsedSkills = [];
+  }
 
   try {
     const user = await prisma.user.findUnique({
@@ -54,26 +68,47 @@ const updateUserProfile = async (req, res) => {
       data: {
         fullname,
         ...(hashedPassword && { password: hashedPassword }),
-        profile: {
-          update: {
-            fullName: fullname,
-            gender,
-            age: Number(age),
-            dateOfBirth: new Date(dateOfBirth),
-            profession,
-            specialization,
-            location,
-            bio,
-            skills: JSON.parse(skills),
-            ...(avatarUrl && { avatarUrl }),
-            ...(documents && { documents }),
-            linkedIn,
-            github,
-            primaryEmail,
-            phoneNumber,
-            salaryExpectation: Number(salaryExpectation),
-          },
-        },
+        profile: user.profile
+          ? {
+              update: {
+                fullName: fullname || "",
+                gender: gender || "",
+                age: safeAge,
+                dateOfBirth: safeDOB,
+                profession: profession || "",
+                specialization: specialization || "",
+                location: location || "",
+                bio: bio || "",
+                skills: parsedSkills,
+                ...(avatarUrl && { avatarUrl }),
+                ...(documents && { documents }),
+                linkedIn: linkedIn || "",
+                github: github || "",
+                primaryEmail: primaryEmail || "",
+                phoneNumber: phoneNumber || "",
+                ...(safeSalary !== undefined && { salaryExpectation: safeSalary }),
+              },
+            }
+          : {
+              create: {
+                fullName: fullname || "",
+                gender: gender || "",
+                age: safeAge,
+                dateOfBirth: safeDOB,
+                profession: profession || "",
+                specialization: specialization || "",
+                location: location || "",
+                bio: bio || "",
+                skills: parsedSkills,
+                avatarUrl,
+                documents,
+                linkedIn: linkedIn || "",
+                github: github || "",
+                primaryEmail: primaryEmail || "",
+                phoneNumber: phoneNumber || "",
+                salaryExpectation: safeSalary,
+              },
+            },
       },
       include: { profile: true },
     });
@@ -90,6 +125,61 @@ const updateUserProfile = async (req, res) => {
     });
   }
 };
+
+const updateAvatar = async (req, res) => {
+  try {
+    // Sample logic: suppose you're using base64 avatar upload
+    const { userId } = req.user;
+    const { avatarBase64 } = req.body;
+
+    // Save avatar to DB
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { avatar: avatarBase64 },
+    });
+
+    res.status(200).json({
+      message: "Avatar updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Error updating avatar:", error);
+    res.status(500).json({ error: "Server error while updating avatar" });
+  }
+};
+
+const updateProfileWithFiles = async (req, res) => {
+  try {
+    const { userId } = req.user;
+
+    // Assuming you're receiving things like name, bio, etc.
+    const { fullName, bio, availability } = req.body;
+
+    // And if you're uploading files (e.g., avatar or badge), it should have already been converted to base64 by middleware
+    const { avatarBase64, badgeBase64 } = req.body;
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        fullName,
+        bio,
+        availability,
+        avatar: avatarBase64 || undefined,
+        badge: badgeBase64 || undefined,
+      },
+    });
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user: updatedUser,
+    });
+  } catch (error) {
+    console.error("Error updating profile with files:", error);
+    res.status(500).json({ error: "Server error updating profile" });
+  }
+};
+
+
 
 // Get all users
 const getAllUsers = async (req, res) => {
@@ -125,7 +215,14 @@ const getUserProfile = async (req, res) => {
 // Delete user account
 const deleteUserAccount = async (req, res) => {
   const { userId } = req.params;
+  
   try {
+
+     await prisma.profile.deleteMany({
+      where: { userId },
+     })
+
+     
     await prisma.user.delete({ where: { id: userId } });
     return res
       .status(200)
@@ -268,4 +365,6 @@ module.exports = {
   deleteUserAccount,
   getUserBadges,
   uploadBadge,
+  updateAvatar,
+  updateProfileWithFiles,
 };
