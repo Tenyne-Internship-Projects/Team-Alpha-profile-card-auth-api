@@ -232,6 +232,12 @@ const requestPasswordReset = async (req, res) => {
 const resetPassword = async (req, res) => {
   const { token, newPassword } = req.body;
 
+  if (!token || !newPassword) {
+    return res.status(400).json({
+      message: "Token and new password are required",
+    });
+  }
+
   const isStrongPassword = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$/.test(
     newPassword
   );
@@ -245,6 +251,13 @@ const resetPassword = async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
+
+    console.log(`[Decoded Reset Token] User ID: ${userId}`);
+
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
