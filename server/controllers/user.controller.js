@@ -1,11 +1,11 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
-// const {
-//   safeField,
-//   safeArray,
-//   calculateAge,
-// } = require("../utils/sanitizeInput");
+const {
+  safeField,
+  safeArray,
+  calculateAge,
+} = require("../utils/sanitizeInput");
 
 const isVerifiedProfile = require("../utils/verifiedProfile");
 
@@ -15,8 +15,7 @@ const updateUserProfile = async (req, res) => {
   const {
     fullname,
     gender,
-    age,
-    dateOfBirth,
+    dateOfBirth = null,
     profession,
     specialization,
     location,
@@ -41,14 +40,12 @@ const updateUserProfile = async (req, res) => {
     ? documentFiles.map((file) => `/uploads/badges/${file.filename}`)
     : null;
 
-  const isValidDate = (d) => d instanceof Date && !isNaN(d);
   const parsedDOB = new Date(dateOfBirth);
-  const safeDOB = isValidDate(parsedDOB) ? parsedDOB : new Date();
-
-  const safeAge = !isNaN(Number(age)) ? Number(age) : 0;
+  const isValidDate = (d) => d instanceof Date && !isNaN(d);
+  const safeDOB = isValidDate(parsedDOB) ? parsedDOB : null;
   const safeSalary = !isNaN(Number(salaryExpectation))
     ? Number(salaryExpectation)
-    : undefined;
+    : null;
 
   let parsedSkills;
   try {
@@ -79,43 +76,39 @@ const updateUserProfile = async (req, res) => {
         profile: user.profile
           ? {
               update: {
-                fullName: fullname || "",
-                gender: gender || "",
-                age: safeAge,
+                fullName: safeField(fullname),
+                gender: safeField(gender),
                 dateOfBirth: safeDOB,
-                profession: profession || "",
-                specialization: specialization || "",
-                location: location || "",
-                bio: bio || "",
-                skills: parsedSkills,
+                profession: safeField(profession),
+                specialization: safeField(specialization),
+                location: safeField(location),
+                bio: safeField(bio),
+                skills: safeArray(parsedSkills),
                 ...(avatarUrl && { avatarUrl }),
-                ...(documents && { documents }),
-                linkedIn: linkedIn || "",
-                github: github || "",
-                primaryEmail: primaryEmail || "",
-                phoneNumber: phoneNumber || "",
-                ...(safeSalary !== undefined && {
-                  salaryExpectation: safeSalary,
-                }),
+                ...(documents.length && { documents }),
+                linkedIn: safeField(linkedIn),
+                github: safeField(github),
+                primaryEmail: safeField(primaryEmail),
+                phoneNumber: safeField(phoneNumber),
+                ...(safeSalary !== null && { salaryExpectation: safeSalary }),
               },
             }
           : {
               create: {
-                fullName: fullname || "",
-                gender: gender || "",
-                age: safeAge,
+                fullName: safeField(fullname),
+                gender: safeField(gender),
                 dateOfBirth: safeDOB,
-                profession: profession || "",
-                specialization: specialization || "",
-                location: location || "",
-                bio: bio || "",
-                skills: parsedSkills,
+                profession: safeField(profession),
+                specialization: safeField(specialization),
+                location: safeField(location),
+                bio: safeField(bio),
+                skills: safeArray(parsedSkills),
                 avatarUrl,
                 documents,
-                linkedIn: linkedIn || "",
-                github: github || "",
-                primaryEmail: primaryEmail || "",
-                phoneNumber: phoneNumber || "",
+                linkedIn: safeField(linkedIn),
+                github: safeField(github),
+                primaryEmail: safeField(primaryEmail),
+                phoneNumber: safeField(phoneNumber),
                 salaryExpectation: safeSalary,
               },
             },
