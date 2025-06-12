@@ -1,14 +1,14 @@
-// utils/mailer.js
 const nodemailer = require("nodemailer");
-require("dotenv").config();
-// Create transporter
+require("dotenv").config(); // Load environment variables from .env file
+
+//@ Create a transporter to send emails using SMTP (email server)
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: parseInt(process.env.SMTP_PORT, 10), // 587
-  secure: false, // TLS (false means STARTTLS)
+  port: parseInt(process.env.SMTP_PORT, 10), // Convert SMTP port to number (like 587)
+  secure: false, // Use STARTTLS instead of SSL (secure: false means STARTTLS)
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.SMTP_USER, // Email account username
+    pass: process.env.SMTP_PASS, // Email account password
   },
 });
 
@@ -27,12 +27,15 @@ async function sendEmail(to, subject, html) {
       html,
     });
 
+    //@ Log the email message ID in the console
     console.log("Email sent:", info.messageId);
-    return { success: true, messageId: info.messageId };
+    return { success: true, messageId: info.messageId }; // Return success status
   } catch (error) {
+    //@ Show error in console if email sending fails
     console.error(" Failed to send email:", error.message);
+    //@ Throw an error so the calling function knows it failed
     throw new Error("Failed to send email.");
   }
 }
-
+//@ Export the sendEmail function so it can be used in other files
 module.exports = { sendEmail };
