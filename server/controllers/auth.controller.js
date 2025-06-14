@@ -6,11 +6,12 @@ const { sendEmail } = require("../utils/mailer");
 
 const prisma = new PrismaClient();
 
-// Register User
+//@ Register a new user and send a verification email
 const registerUser = async (req, res) => {
   try {
     const { fullname, email, password } = req.body;
 
+    //@ Check password strength
     const isStrongPassword = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$/.test(
       password
     );
@@ -21,14 +22,16 @@ const registerUser = async (req, res) => {
       });
     }
 
+    //@ Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    //@ Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with verified default false (make sure Prisma schema has this)
+    //@ Create user with verified default false
     const newUser = await prisma.user.create({
       data: {
         fullname,
@@ -38,13 +41,13 @@ const registerUser = async (req, res) => {
       },
     });
 
-    // Generate email verification token with expiry (e.g., 1 day)
+    //@ Generate email verification token with expiry (e.g., 1 day)
     const verificationToken = generateToken(newUser.id, { expiresIn: "1d" });
 
-    // Prepare verification URL (adjust your frontend/base URL accordingly)
+    //@ Prepare verification URL (adjust your frontend/base URL accordingly)
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
-    // Send verification email
+    //@ Send verification email
     const message = `
       <h1>Email Verification</h1>
       <p>Hello ${newUser.fullname},</p>
@@ -55,7 +58,7 @@ const registerUser = async (req, res) => {
 
     await sendEmail(newUser.email, "Verify your email", message);
 
-    // Respond without login token - must verify first
+    //@ Respond without login token - must verify first
     return res.status(201).json({
       message:
         "User registered successfully. Please check your email to verify your account.",
@@ -74,7 +77,7 @@ const registerUser = async (req, res) => {
   }
 };
 
-// Verify Email Controller
+//@ Verify user email with token sent in email
 const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
@@ -84,7 +87,7 @@ const verifyEmail = async (req, res) => {
         .json({ message: "Verification token is required" });
     }
 
-    // Decode and verify token
+    //@ Decode and verify token
     const decoded = require("jsonwebtoken").verify(
       token,
       process.env.JWT_SECRET
@@ -92,7 +95,7 @@ const verifyEmail = async (req, res) => {
 
     const userId = decoded.id;
 
-    // Find user
+    //@ Find user
     const user = await prisma.user.findUnique({ where: { id: userId } });
 
     if (!user) {
@@ -103,7 +106,7 @@ const verifyEmail = async (req, res) => {
       return res.status(400).json({ message: "User already verified" });
     }
 
-    // Update user verified to true
+    //@ Update user verified to true
     await prisma.user.update({
       where: { id: userId },
       data: { verified: true },
@@ -112,7 +115,7 @@ const verifyEmail = async (req, res) => {
     return res.status(200).json({ message: "Email verified successfully" });
   } catch (err) {
     console.error("[Verify Email Error]", err);
-    // Handle token expiration or invalid token errors
+    // @ Handle token expiration or invalid token errors
     if (err.name === "TokenExpiredError") {
       return res.status(400).json({ message: "Verification token expired" });
     }
@@ -123,7 +126,7 @@ const verifyEmail = async (req, res) => {
   }
 };
 
-// Resend Verification Email
+//@ Resend Verification Email
 const resendVerificationEmail = async (req, res) => {
   const { email } = req.body;
 
@@ -135,7 +138,7 @@ const resendVerificationEmail = async (req, res) => {
     const user = await prisma.user.findUnique({ where: { email } });
 
     if (!user || user.verified) {
-      // Always return 200 even if user not found or already verified
+      // @ Always return 200 even if user not found or already verified
       return res.status(200).json({
         message:
           "If your email is registered, a verification link has been sent.",
@@ -145,7 +148,7 @@ const resendVerificationEmail = async (req, res) => {
     if (user.verified) {
       return res.status(400).json({ message: "User is already verified" });
     }
-
+    //@ Generate new token and email
     const token = generateToken(user.id, { expiresIn: "1d" });
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
 
@@ -166,7 +169,7 @@ const resendVerificationEmail = async (req, res) => {
   }
 };
 
-// Login
+//@ Login user and return a JWT token
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -194,7 +197,7 @@ const login = async (req, res) => {
   }
 };
 
-// Step 1 - Send Reset Link
+//@ Step 1: Send password reset email with token
 const requestPasswordReset = async (req, res) => {
   const { email } = req.body;
 
@@ -228,7 +231,7 @@ const requestPasswordReset = async (req, res) => {
   }
 };
 
-// Step 2 - Reset Password
+//@ Step 2: Reset user password using token
 const resetPassword = async (req, res) => {
   const { token, newPassword } = req.body;
 
@@ -279,16 +282,25 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// Logout
+//@ Logout user by verifying and acknowledging token (stateless)
 const logout = async (req, res) => {
-  const { email } = req.body;
+  try {
+    const authHeader = req.headers.authorization;
+    console.log("Authorization Header:", authHeader);
 
-  await prisma.user.update({
-    where: { email },
-    data: { token: null },
-  });
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized: No token provided" });
+    }
 
-  return res.status(200).json({ message: "Logout successful" });
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log("Decoded Token:", decoded);
+
+    return res.status(200).json({ message: "Logout successful" });
+  } catch (err) {
+    console.error("JWT verification error:", err.message);
+    return res.status(401).json({ error: err.message });
+  }
 };
 
 module.exports = {

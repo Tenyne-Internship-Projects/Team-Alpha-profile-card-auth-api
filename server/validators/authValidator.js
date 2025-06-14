@@ -1,6 +1,7 @@
+//@ Import Joi for validating request inputs
 const Joi = require("joi");
 
-// Register Schema
+//@ Schema to validate user registration fields
 const registerSchema = Joi.object({
   fullname: Joi.string().min(3).max(50).required().messages({
     "string.empty": "Full name is required",
@@ -16,7 +17,7 @@ const registerSchema = Joi.object({
   }),
 });
 
-// Login Schema
+//@ Schema to validate login fields
 const loginSchema = Joi.object({
   email: Joi.string().email().required().messages({
     "string.email": "Enter a valid email",
@@ -27,7 +28,7 @@ const loginSchema = Joi.object({
   }),
 });
 
-// Request Password Reset Schema
+//@ Schema to validate request for password reset
 const requestPasswordResetSchema = Joi.object({
   email: Joi.string().email().required().messages({
     "string.email": "Enter a valid email",
@@ -35,7 +36,7 @@ const requestPasswordResetSchema = Joi.object({
   }),
 });
 
-// Reset Password Schema
+//@ Schema to validate resetting the password with a token
 const resetPasswordSchema = Joi.object({
   token: Joi.string().required().messages({
     "string.empty": "Reset token is required",
@@ -45,7 +46,7 @@ const resetPasswordSchema = Joi.object({
     "string.min": "New password must be at least 8 characters long",
   }),
 });
-
+//@ Export all schemas so they can be used in route validation
 module.exports = {
   registerSchema,
   loginSchema,

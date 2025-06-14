@@ -1,7 +1,6 @@
-// server/middleware/rateLimiter.js
-
 const rateLimit = require("express-rate-limit");
 
+//@ This middleware limits how many times someone can try to log in
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5, // limit each IP to 5 login attempts

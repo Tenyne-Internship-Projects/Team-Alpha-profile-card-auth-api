@@ -13,24 +13,11 @@ model User {
   email     String   @unique
   password  String   
   createdAt DateTime @default(now())
-  verified Boolean @default(false)
-  codes     VerificationCode[]
-
-  profile   Profile?
-  @@map("users")
-}
-
-model User {
-  id        String   @id @default(uuid())
-  fullname  String 
-  email     String   @unique
-  password  String   
-  createdAt DateTime @default(now())
   verified  Boolean  @default(false)
 
-  profile   Profile? @relation("UserProfile", fields: [id], references: [userId])
+  profile  Profile? @relation("UserProfile") 
 
-  codes     VerificationCode[]
+
 
   @@map("users")
 }
@@ -38,11 +25,11 @@ model User {
 model Profile {
   id              String   @id @default(uuid())
   userId          String   @unique
-  user            User     @relation("UserProfile", fields: [userId], references: [id])
+    user     User     @relation("UserProfile", fields: [userId], references: [id]) 
+
 
   fullName        String
   gender          String
-  age             Int
   dateOfBirth     DateTime
   profession      String
   specialization  String

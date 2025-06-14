@@ -1,22 +1,21 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
-// const {
-//   safeField,
-//   safeArray,
-//   calculateAge,
-// } = require("../utils/sanitizeInput");
+const {
+  safeField,
+  safeArray,
+  calculateAge,
+} = require("../utils/sanitizeInput");
 
 const isVerifiedProfile = require("../utils/verifiedProfile");
 
-// Update user profile
+//@ This controller updates the user profile including personal info, skills, social links, and optional files like avatar and documents.
 const updateUserProfile = async (req, res) => {
   const { userId } = req.params;
   const {
     fullname,
     gender,
-    age,
-    dateOfBirth,
+    dateOfBirth = null,
     profession,
     specialization,
     location,
@@ -29,26 +28,52 @@ const updateUserProfile = async (req, res) => {
     salaryExpectation,
     password,
   } = req.body;
-
-  const avatarFile = req.files?.avatar?.[0];
+  //@ Extract uploaded files (if any) from the request
+  const avatarFile = req.files?.avatar?.[0] || null;
   const documentFiles = req.files?.documents || [];
 
+  //@ Create URLs for the uploaded files
   const avatarUrl = avatarFile
     ? `/uploads/badges/${avatarFile.filename}`
     : null;
 
-  const documents = documentFiles
-    ? documentFiles.map((file) => `/uploads/badges/${file.filename}`)
-    : null;
+  const documents = Array.isArray(documentFiles)
+    ? documentFiles
+        .filter((file) => file?.filename)
+        .map((file) => `/uploads/badges/${file.filename}`)
+    : [];
 
-  const isValidDate = (d) => d instanceof Date && !isNaN(d);
+  //@ Parse and validate the date of birth
   const parsedDOB = new Date(dateOfBirth);
-  const safeDOB = isValidDate(parsedDOB) ? parsedDOB : new Date();
+  const isValidDate = (d) => d instanceof Date && !isNaN(d);
+  const safeDOB = isValidDate(parsedDOB) ? parsedDOB : null;
 
-  const safeAge = !isNaN(Number(age)) ? Number(age) : 0;
+  //@ Calculate user's age from date of birth
+  const calculateAge = (dob) => {
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDifference = today.getMonth() - dob.getMonth();
+    if (
+      monthDifference < 0 ||
+      (monthDifference === 0 && today.getDate() < dob.getDate())
+    ) {
+      age--;
+    }
+    return age;
+  };
+
+  //@ Validate age range
+  const age = safeDOB ? calculateAge(safeDOB) : null;
+
+  //@ Validate age boundaries
+  if (age !== null && (age < 0 || age > 120)) {
+    return res.status(400).json({ message: "Invalid date of birth provided" });
+  }
+
+  //@ Parse and validate salary and skills
   const safeSalary = !isNaN(Number(salaryExpectation))
     ? Number(salaryExpectation)
-    : undefined;
+    : null;
 
   let parsedSkills;
   try {
@@ -58,6 +83,7 @@ const updateUserProfile = async (req, res) => {
   }
 
   try {
+    //@ Check if user exists
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { profile: true },
@@ -67,10 +93,12 @@ const updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
+    //@ Hash password if it's provided
     const hashedPassword = password
       ? await bcrypt.hash(password, 10)
       : undefined;
 
+    //@ Update user and profile data
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -78,44 +106,42 @@ const updateUserProfile = async (req, res) => {
         ...(hashedPassword && { password: hashedPassword }),
         profile: user.profile
           ? {
+              //@ If profile exists, update it
               update: {
-                fullName: fullname || "",
-                gender: gender || "",
-                age: safeAge,
+                fullName: safeField(fullname),
+                gender: safeField(gender),
                 dateOfBirth: safeDOB,
-                profession: profession || "",
-                specialization: specialization || "",
-                location: location || "",
-                bio: bio || "",
-                skills: parsedSkills,
+                profession: safeField(profession),
+                specialization: safeField(specialization),
+                location: safeField(location),
+                bio: safeField(bio),
+                skills: safeArray(parsedSkills),
                 ...(avatarUrl && { avatarUrl }),
-                ...(documents && { documents }),
-                linkedIn: linkedIn || "",
-                github: github || "",
-                primaryEmail: primaryEmail || "",
-                phoneNumber: phoneNumber || "",
-                ...(safeSalary !== undefined && {
-                  salaryExpectation: safeSalary,
-                }),
+                ...(documents.length && { documents }),
+                linkedIn: safeField(linkedIn),
+                github: safeField(github),
+                primaryEmail: safeField(primaryEmail),
+                phoneNumber: safeField(phoneNumber),
+                ...(safeSalary !== null && { salaryExpectation: safeSalary }),
               },
             }
           : {
+              //@ If no profile exists, create one
               create: {
-                fullName: fullname || "",
-                gender: gender || "",
-                age: safeAge,
+                fullName: safeField(fullname),
+                gender: safeField(gender),
                 dateOfBirth: safeDOB,
-                profession: profession || "",
-                specialization: specialization || "",
-                location: location || "",
-                bio: bio || "",
-                skills: parsedSkills,
+                profession: safeField(profession),
+                specialization: safeField(specialization),
+                location: safeField(location),
+                bio: safeField(bio),
+                skills: safeArray(parsedSkills),
                 avatarUrl,
                 documents,
-                linkedIn: linkedIn || "",
-                github: github || "",
-                primaryEmail: primaryEmail || "",
-                phoneNumber: phoneNumber || "",
+                linkedIn: safeField(linkedIn),
+                github: safeField(github),
+                primaryEmail: safeField(primaryEmail),
+                phoneNumber: safeField(phoneNumber),
                 salaryExpectation: safeSalary,
               },
             },
@@ -136,6 +162,7 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
+//@ Update user avatar (base64 format)
 const updateAvatar = async (req, res) => {
   try {
     const { userId } = req.user;
@@ -157,6 +184,7 @@ const updateAvatar = async (req, res) => {
   }
 };
 
+//@ Update basic profile fields with avatar and badge (base64)
 const updateProfileWithFiles = async (req, res) => {
   try {
     const { userId } = req.user;
@@ -186,7 +214,7 @@ const updateProfileWithFiles = async (req, res) => {
   }
 };
 
-// Get all users
+//@ Get all users with their profiles
 const getAllUsers = async (req, res) => {
   try {
     const users = await prisma.user.findMany({ include: { profile: true } });
@@ -197,7 +225,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-// Get single user by ID
+//@ Get a specific user by ID, including profile
 const getUserProfile = async (req, res) => {
   const { userId } = req.params;
   try {
@@ -217,7 +245,7 @@ const getUserProfile = async (req, res) => {
   }
 };
 
-// Delete user account
+//@ Delete user and their associated profile
 const deleteUserAccount = async (req, res) => {
   const { userId } = req.params;
 
@@ -236,7 +264,7 @@ const deleteUserAccount = async (req, res) => {
   }
 };
 
-// Toggle availability status
+//@ Toggle user's availability status
 const toggleAvailability = async (req, res) => {
   const { userId } = req.params;
   const { isAvailable } = req.body;
@@ -276,7 +304,7 @@ const toggleAvailability = async (req, res) => {
   }
 };
 
-// Get user badges — only for verified users
+//@ Get all badges uploaded by the user - only if user is verified
 const getUserBadges = async (req, res) => {
   const { userId } = req.params;
 
@@ -307,10 +335,10 @@ const getUserBadges = async (req, res) => {
   }
 };
 
-// Upload badge — only for verified users
+//@ Upload a new badge (image) to user's profile - only for verified users
 const uploadBadge = async (req, res) => {
   const { userId } = req.params;
-  const badgeFile = req.file; // assuming single file upload middleware
+  const badgeFile = req.file;
 
   try {
     const isVerified = await isVerifiedProfile(userId);
@@ -324,10 +352,10 @@ const uploadBadge = async (req, res) => {
       return res.status(400).json({ message: "No badge file uploaded." });
     }
 
-    // Save badge file path and associate with profile badges
+    //@ Generate URL path for badge and update user's profile
     const badgeUrl = `/uploads/badges/${badgeFile.filename}`;
 
-    // Fetch current badges
+    //@ Fetch current badges
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { profile: true },
@@ -337,11 +365,11 @@ const uploadBadge = async (req, res) => {
       return res.status(404).json({ message: "User or profile not found" });
     }
 
-    // Append new badge to existing badges array or create new array
+    //@ Append new badge to existing badges array or create new array
     const currentBadges = user.profile.badges || [];
     const updatedBadges = [...currentBadges, badgeUrl];
 
-    // Update profile badges
+    //@ Update profile badges
     await prisma.profile.update({
       where: { id: user.profile.id },
       data: { badges: updatedBadges },
@@ -360,6 +388,7 @@ const uploadBadge = async (req, res) => {
   }
 };
 
+//@ Export all functions for use in routes
 module.exports = {
   getAllUsers,
   getUserProfile,
