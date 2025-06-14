@@ -4,6 +4,7 @@ const {
   registerUser,
   verifyEmail,
   login,
+  refresh,
   logout,
   resendVerificationEmail,
   requestPasswordReset,
@@ -51,6 +52,7 @@ router.put(
 router.post("/login", loginLimiter, validateRequest(loginSchema), login);
 router.get("/verify-email", verifyEmail);
 router.post("/logout", logout);
+router.post("/refresh", refresh)
 
 // Email Verification & Password Reset Routes
 router.post("/resend-verification", resendVerificationEmail);

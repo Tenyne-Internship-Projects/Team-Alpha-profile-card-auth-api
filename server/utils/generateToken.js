@@ -11,5 +11,21 @@ const generateToken = (userId) => {
   //@ Return the generated token
   return token;
 };
+
+// for generateAccessToken
+const generateAccessToken = (user) => {
+  return jwt.sign({ id: user.id }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "15m" });
+};
+
+// for generateRefreshToken
+const generateRefreshToken = (user) => {
+  return jwt.sign({ id: user.id }, process.env.REFRESH_TOKEN_SECRET, { expiresIn: "30d" });
+};
+
+
 //@ Export the function so it can be used in other files
-module.exports = generateToken;
+module.exports = {
+  generateToken,
+  generateAccessToken,
+  generateRefreshToken
+};

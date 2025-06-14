@@ -1,8 +1,9 @@
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const generateToken = require("../utils/generateToken");
+const {generateToken, generateAccessToken, generateRefreshToken} = require("../utils/generateToken");
 const { sendEmail } = require("../utils/mailer");
+
 
 const prisma = new PrismaClient();
 
@@ -176,19 +177,36 @@ const login = async (req, res) => {
 
     const user = await prisma.user.findUnique({ where: { email } });
 
-    // Invalid email or password
+    // Check if email exists and password matches
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    // Check if user is verified
-    const token = generateToken(user.id);
+
+    // Generate access and refresh tokens
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Save refresh token to DB
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { refreshToken },
+    });
+
+    // Set refresh token as HTTP-only cookie
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "Strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
 
     return res.status(200).json({
       message: "Login successful",
-      token,
+      accessToken,
       user: {
         id: user.id,
         email: user.email,
+        fullname: user.fullname,
       },
     });
   } catch (err) {
@@ -196,6 +214,29 @@ const login = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
+// refresh token 
+const refresh = async (req, res) => {
+  const token = req.cookies.refreshToken;
+
+  if (!token) return res.sendStatus(401);
+
+  try {
+    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+    const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+
+    if (!user || user.refreshToken !== token) {
+      return res.sendStatus(403);
+    }
+
+    const newAccessToken = generateAccessToken(user);
+    res.json({ accessToken: newAccessToken });
+  } catch (err) {
+    return res.sendStatus(403);
+  }
+};
+
+
 
 //@ Step 1: Send password reset email with token
 const requestPasswordReset = async (req, res) => {
@@ -285,21 +326,34 @@ const resetPassword = async (req, res) => {
 //@ Logout user by verifying and acknowledging token (stateless)
 const logout = async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    console.log("Authorization Header:", authHeader);
+    const token = req.cookies.refreshToken;
+    console.log("Refresh Token from Cookie:", token);
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized: No token provided" });
+    if (!token) {
+      return res.status(204).json({ message: "No refresh token provided" });
     }
 
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("Decoded Token:", decoded);
+    // Verify refresh token
+    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+    console.log("Decoded Refresh Token:", decoded);
+
+    // Clear the refresh token in DB
+    await prisma.user.update({
+      where: { id: decoded.id },
+      data: { refreshToken: null },
+    });
+
+    // Clear refresh token cookie
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
 
     return res.status(200).json({ message: "Logout successful" });
   } catch (err) {
-    console.error("JWT verification error:", err.message);
-    return res.status(401).json({ error: err.message });
+    console.error("Logout error:", err.message);
+    return res.status(401).json({ error: "Invalid or expired refresh token" });
   }
 };
 
@@ -308,6 +362,7 @@ module.exports = {
   verifyEmail,
   resendVerificationEmail,
   login,
+  refresh,
   requestPasswordReset,
   resetPassword,
   logout,

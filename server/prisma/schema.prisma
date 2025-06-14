@@ -12,6 +12,8 @@ model User {
   fullname  String 
   email     String   @unique
   password  String   
+  refreshToken   String?
+  provider  String?
   createdAt DateTime @default(now())
   verified  Boolean  @default(false)
 

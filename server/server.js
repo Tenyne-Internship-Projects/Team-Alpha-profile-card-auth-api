@@ -30,8 +30,10 @@ const { errorLogger } = require("./middlewares/errorLogger");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/profileRoutes");
 
+
 //@ Load Sentry for error tracking in production
 const Sentry = require("@sentry/node");
+const cookieParser = require("cookie-parser");
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -61,6 +63,7 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(helmet());
 app.use(morgan("dev"));
+app.use(cookieParser())
 
 //@ Serve uploaded files (like avatars or badges)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));

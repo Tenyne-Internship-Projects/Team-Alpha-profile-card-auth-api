@@ -25,4 +25,23 @@ const protect = (req, res, next) => {
   }
 };
 
-module.exports = protect;
+
+// is to authenticate the authorization of the ATS
+const authenticate = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader?.split(" ")[1];
+
+  if (!token) return res.sendStatus(401); // No token provided
+
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403); // Token invalid
+    req.user = user;
+    next();
+  });
+};
+
+
+module.exports = {
+  protect,
+  authenticate
+};
