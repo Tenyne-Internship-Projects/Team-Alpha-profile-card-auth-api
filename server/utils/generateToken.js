@@ -1,15 +1,31 @@
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
 
-//@ This function creates a JWT (JSON Web Token) for a user
-const generateToken = (userId) => {
-  //@ Create a token that includes the userId as payload
-  //@ It uses a secret key stored in .env (JWT_SECRET)
-  //@ The token will expire in 1 hour
-  const token = jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: "1h",
+const generateAccessToken = (userId, options = {}) => {
+  return jwt.sign({ userId }, process.env.JWT_SECRET, {
+    expiresIn: process.env.ACCESS_TOKEN_EXPIRES_IN || "60m",
+    ...options,
   });
-  //@ Return the generated token
+};
+
+const generateRefreshToken = async (userId) => {
+  const token = crypto.randomBytes(64).toString("hex");
+  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  await prisma.refreshToken.create({ data: { token, userId, expiresAt } });
   return token;
 };
-//@ Export the function so it can be used in other files
-module.exports = generateToken;
+
+const revokeRefreshToken = async (token) => {
+  await prisma.refreshToken.updateMany({
+    where: { token },
+    data: { revoked: true },
+  });
+};
+
+module.exports = {
+  generateAccessToken,
+  generateRefreshToken,
+  revokeRefreshToken,
+};
