@@ -26,6 +26,8 @@ const cors = require("cors");
 const { connectDB } = require("./config/db");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const cookieParser = require("cookie-parser");
+
 const { errorLogger } = require("./middlewares/errorLogger");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/profileRoutes");
@@ -59,6 +61,7 @@ if (isProduction) {
 //@ Apply common middlewares
 app.use(cors({ origin: "*" }));
 app.use(express.json());
+app.use(cookieParser());
 app.use(helmet());
 app.use(morgan("dev"));
 
