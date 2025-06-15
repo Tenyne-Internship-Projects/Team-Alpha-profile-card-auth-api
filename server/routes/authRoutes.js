@@ -8,6 +8,7 @@ const {
   resendVerificationEmail,
   requestPasswordReset,
   resetPassword,
+  refreshAccessToken,
 } = require("../controllers/auth.controller");
 const userController = require("../controllers/user.controller");
 const { uploads } = require("../middlewares/uploads");
@@ -60,5 +61,6 @@ router.post(
   validateRequest(requestPasswordResetSchema),
   requestPasswordReset
 );
+router.post("/refresh-token", refreshAccessToken);
 
 module.exports = router;
