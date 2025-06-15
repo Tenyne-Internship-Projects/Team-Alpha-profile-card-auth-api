@@ -1,52 +1,58 @@
-datasource db {
-  provider = "postgresql"
-  url      = env("POSTGRES_URI") // This reads from your .env file
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URI")
+}
+
 model User {
-  id        String   @id @default(uuid())
-  fullname  String 
-  email     String   @unique
-  password  String   
-  createdAt DateTime @default(now())
-  verified  Boolean  @default(false)
-
-  profile  Profile? @relation("UserProfile") 
-
-
+  id            String          @id @default(uuid())
+  fullname      String
+  email         String          @unique
+  password      String
+  createdAt     DateTime        @default(now())
+  verified      Boolean         @default(false)
+  provider      String?
+  profile       Profile?        @relation("UserToProfile")
+  refreshTokens RefreshToken[]
 
   @@map("users")
 }
 
 model Profile {
-  id              String   @id @default(uuid())
-  userId          String   @unique
-    user     User     @relation("UserProfile", fields: [userId], references: [id]) 
-
-
-  fullName        String
-  gender          String
-  dateOfBirth     DateTime
-  profession      String
-  specialization  String
-  location        String
-  bio             String?
-  skills          String[]
-  avatarUrl       String?
-  documents       String[]
-
-  linkedIn        String?
-  github          String?
-  primaryEmail    String
-  phoneNumber     String
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  fullName          String
+  gender            String
+  dateOfBirth       DateTime
+  profession        String
+  specialization    String
+  location          String
+  bio               String?
+  skills            Json      // was String[]
+  avatarUrl         String?
+  documents         Json      // was String[]
+  linkedIn          String?
+  github            String?
+  primaryEmail      String
+  phoneNumber       String
   salaryExpectation Int?
-
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  isAvailable     Boolean  @default(true) 
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  isAvailable       Boolean   @default(true)
+  user              User      @relation("UserToProfile", fields: [userId], references: [id])
 }
 
+model RefreshToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  revoked    Boolean  @default(false)
+
+  @@map("refresh_tokens")
+}
