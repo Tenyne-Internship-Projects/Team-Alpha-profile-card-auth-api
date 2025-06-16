@@ -15,34 +15,37 @@ model User {
   createdAt     DateTime        @default(now())
   verified      Boolean         @default(false)
   provider      String?
-  profile       Profile?        @relation("UserToProfile")
+   profile  Profile? @relation("UserProfile") 
+
   refreshTokens RefreshToken[]
 
   @@map("users")
 }
 
 model Profile {
-  id                String   @id @default(uuid())
-  userId            String   @unique
-  fullName          String
-  gender            String
-  dateOfBirth       DateTime
-  profession        String
-  specialization    String
-  location          String
-  bio               String?
-  skills            Json      // was String[]
-  avatarUrl         String?
-  documents         Json      // was String[]
-  linkedIn          String?
-  github            String?
-  primaryEmail      String
-  phoneNumber       String
+  id              String   @id @default(uuid())
+  userId          String   @unique
+ user     User     @relation("UserProfile", fields: [userId], references: [id]) 
+  fullName        String
+  gender          String
+  dateOfBirth     DateTime
+  profession      String
+  specialization  String
+  location        String
+  bio             String?
+  skills          String[]
+  avatarUrl       String?
+  documents       String[]
+
+  linkedIn        String?
+  github          String?
+  primaryEmail    String
+  phoneNumber     String
   salaryExpectation Int?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  isAvailable       Boolean   @default(true)
-  user              User      @relation("UserToProfile", fields: [userId], references: [id])
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  isAvailable     Boolean  @default(true) 
 }
 
 model RefreshToken {
