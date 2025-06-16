@@ -14,8 +14,8 @@ const toUrl = (filename) => `/uploads/badges/${filename}`;
 /**
  * POST /upload/:userId
  * Handles:
- *   • one file named “avatar”   (image)
- *   • many files named “documents”
+ 
+ *   • avatar and  many files named “documents”
  */
 
 const uploadFiles = async (req, res) => {

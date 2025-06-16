@@ -99,7 +99,7 @@ router.put(
   updateProfileWithFiles
 );
 
-// Single endpoint handles BOTH avatar and documents
+// Single endpoint handles BOTH avatar and documents to update profile
 router.post(
   "/uploads-files/:userId",
   uploads.fields([

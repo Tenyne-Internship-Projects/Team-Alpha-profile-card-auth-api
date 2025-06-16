@@ -52,6 +52,8 @@ const registerUser = async (req, res) => {
       <p>This link expires in 24 hours.</p>
     `;
 
+    //sending email to verify account
+
     await sendEmail(newUser.email, "Verify your email", message);
 
     return res.status(201).json({

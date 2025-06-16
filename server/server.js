@@ -61,6 +61,7 @@ if (isProduction) {
 //@ Apply common middlewares
 app.use(cors({ origin: "*" }));
 app.use(express.json());
+//to parse cookies
 app.use(cookieParser());
 app.use(helmet());
 app.use(morgan("dev"));

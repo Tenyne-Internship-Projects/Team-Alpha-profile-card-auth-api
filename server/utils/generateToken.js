@@ -16,7 +16,7 @@ const generateRefreshToken = async (userId) => {
   await prisma.refreshToken.create({ data: { token, userId, expiresAt } });
   return token;
 };
-
+//revoke refresh token
 const revokeRefreshToken = async (token) => {
   await prisma.refreshToken.updateMany({
     where: { token },
