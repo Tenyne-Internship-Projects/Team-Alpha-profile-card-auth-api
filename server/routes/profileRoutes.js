@@ -11,6 +11,7 @@ const {
   uploadBadge,
   updateAvatar,
   updateProfileWithFiles,
+  uploadFiles,
 } = require("../controllers/user.controller");
 
 //@ Import middleware for file upload and file conversion
@@ -98,6 +99,15 @@ router.put(
   updateProfileWithFiles
 );
 
+// Single endpoint handles BOTH avatar and documents to update profile
+router.post(
+  "/uploads-files/:userId",
+  uploads.fields([
+    { name: "avatar", maxCount: 1 },
+    { name: "documents", maxCount: 10 },
+  ]),
+  uploadFiles
+);
 //@ DELETE: Delete a user account by ID
 router.delete("/:userId", deleteUserAccount);
 

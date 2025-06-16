@@ -9,7 +9,61 @@ const {
 
 const isVerifiedProfile = require("../utils/verifiedProfile");
 
+const toUrl = (filename) => `/uploads/badges/${filename}`;
+
+/**
+ * POST /upload/:userId
+ * Handles:
+ 
+ *   • avatar and  many files named “documents”
+ */
+
+const uploadFiles = async (req, res) => {
+  const userId = req.params.userId;
+
+  const avatarFile = req.files?.avatar?.[0];
+  const docFiles = req.files?.documents || [];
+
+  const avatarUrl = avatarFile
+    ? `/uploads/badges/${avatarFile.filename}`
+    : null;
+  const documentUrls = docFiles.map((f) => `/uploads/badges/${f.filename}`);
+
+  try {
+    // Check if the profile exists first
+    const existingProfile = await prisma.profile.findUnique({
+      where: { userId },
+    });
+
+    if (!existingProfile) {
+      return res
+        .status(404)
+        .json({ message: "Profile not found for this user." });
+    }
+
+    // Update profile with uploaded files
+    const updatedProfile = await prisma.profile.update({
+      where: { userId },
+      data: {
+        ...(avatarUrl && { avatarUrl }),
+        ...(documentUrls.length > 0 && { documents: { push: documentUrls } }),
+      },
+    });
+
+    return res.status(200).json({
+      message: "Files uploaded successfully",
+      profile: updatedProfile,
+    });
+  } catch (error) {
+    console.error("Upload error:", error);
+    return res.status(500).json({
+      message: "An error occurred while uploading files",
+    });
+  }
+};
+
 //@ This controller updates the user profile including personal info, skills, social links, and optional files like avatar and documents.
+
 const updateUserProfile = async (req, res) => {
   const { userId } = req.params;
   const {
@@ -28,49 +82,26 @@ const updateUserProfile = async (req, res) => {
     salaryExpectation,
     password,
   } = req.body;
-  //@ Extract uploaded files (if any) from the request
-  const avatarFile = req.files?.avatar?.[0] || null;
-  const documentFiles = req.files?.documents || [];
 
-  //@ Create URLs for the uploaded files
-  const avatarUrl = avatarFile
-    ? `/uploads/badges/${avatarFile.filename}`
-    : null;
-
-  const documents = Array.isArray(documentFiles)
-    ? documentFiles
-        .filter((file) => file?.filename)
-        .map((file) => `/uploads/badges/${file.filename}`)
-    : [];
-
-  //@ Parse and validate the date of birth
+  // ——— Parse / validate dateOfBirth ———
   const parsedDOB = new Date(dateOfBirth);
   const isValidDate = (d) => d instanceof Date && !isNaN(d);
-  const safeDOB = isValidDate(parsedDOB) ? parsedDOB : null;
 
-  //@ Calculate user's age from date of birth
   const calculateAge = (dob) => {
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
-    const monthDifference = today.getMonth() - dob.getMonth();
-    if (
-      monthDifference < 0 ||
-      (monthDifference === 0 && today.getDate() < dob.getDate())
-    ) {
-      age--;
-    }
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
     return age;
   };
 
-  //@ Validate age range
+  const safeDOB = isValidDate(parsedDOB) ? parsedDOB : null;
   const age = safeDOB ? calculateAge(safeDOB) : null;
-
-  //@ Validate age boundaries
   if (age !== null && (age < 0 || age > 120)) {
     return res.status(400).json({ message: "Invalid date of birth provided" });
   }
 
-  //@ Parse and validate salary and skills
+  // ——— Salary & skills parsing ———
   const safeSalary = !isNaN(Number(salaryExpectation))
     ? Number(salaryExpectation)
     : null;
@@ -83,22 +114,21 @@ const updateUserProfile = async (req, res) => {
   }
 
   try {
-    //@ Check if user exists
+    // ——— Ensure user exists ———
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: { profile: true },
     });
-
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    //@ Hash password if it's provided
+    // ——— Hash password if supplied ———
     const hashedPassword = password
       ? await bcrypt.hash(password, 10)
       : undefined;
 
-    //@ Update user and profile data
+    // ——— Update basic user table ———
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -106,7 +136,6 @@ const updateUserProfile = async (req, res) => {
         ...(hashedPassword && { password: hashedPassword }),
         profile: user.profile
           ? {
-              //@ If profile exists, update it
               update: {
                 fullName: safeField(fullname),
                 gender: safeField(gender),
@@ -116,17 +145,15 @@ const updateUserProfile = async (req, res) => {
                 location: safeField(location),
                 bio: safeField(bio),
                 skills: safeArray(parsedSkills),
-                ...(avatarUrl && { avatarUrl }),
-                ...(documents.length && { documents }),
                 linkedIn: safeField(linkedIn),
                 github: safeField(github),
                 primaryEmail: safeField(primaryEmail),
                 phoneNumber: safeField(phoneNumber),
                 ...(safeSalary !== null && { salaryExpectation: safeSalary }),
+                // avatarUrl & documents intentionally *not* touched here
               },
             }
           : {
-              //@ If no profile exists, create one
               create: {
                 fullName: safeField(fullname),
                 gender: safeField(gender),
@@ -136,8 +163,6 @@ const updateUserProfile = async (req, res) => {
                 location: safeField(location),
                 bio: safeField(bio),
                 skills: safeArray(parsedSkills),
-                avatarUrl,
-                documents,
                 linkedIn: safeField(linkedIn),
                 github: safeField(github),
                 primaryEmail: safeField(primaryEmail),
@@ -155,10 +180,9 @@ const updateUserProfile = async (req, res) => {
     });
   } catch (err) {
     console.error("Error updating user profile:", err);
-    return res.status(500).json({
-      message: "Internal server error",
-      error: err.message,
-    });
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: err.message });
   }
 };
 
@@ -399,4 +423,5 @@ module.exports = {
   uploadBadge,
   updateAvatar,
   updateProfileWithFiles,
+  uploadFiles,
 };

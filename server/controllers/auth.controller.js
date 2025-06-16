@@ -1,17 +1,19 @@
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const generateToken = require("../utils/generateToken");
+const {
+  generateAccessToken,
+  generateRefreshToken,
+  revokeRefreshToken,
+} = require("../utils/generateToken");
 const { sendEmail } = require("../utils/mailer");
 
 const prisma = new PrismaClient();
 
-//@ Register a new user and send a verification email
 const registerUser = async (req, res) => {
   try {
     const { fullname, email, password } = req.body;
 
-    //@ Check password strength
     const isStrongPassword = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$/.test(
       password
     );
@@ -22,16 +24,12 @@ const registerUser = async (req, res) => {
       });
     }
 
-    //@ Check if user already exists
     const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    if (existingUser)
       return res.status(400).json({ message: "User already exists" });
-    }
 
-    //@ Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    //@ Create user with verified default false
     const newUser = await prisma.user.create({
       data: {
         fullname,
@@ -41,24 +39,23 @@ const registerUser = async (req, res) => {
       },
     });
 
-    //@ Generate email verification token with expiry (e.g., 1 day)
-    const verificationToken = generateToken(newUser.id, { expiresIn: "1d" });
-
-    //@ Prepare verification URL (adjust your frontend/base URL accordingly)
+    const verificationToken = generateAccessToken(newUser.id, {
+      expiresIn: "1d",
+    });
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
-    //@ Send verification email
     const message = `
       <h1>Email Verification</h1>
       <p>Hello ${newUser.fullname},</p>
-      <p>Thank you for registering! Please verify your email by clicking the link below:</p>
+      <p>Please verify your email by clicking the link below:</p>
       <a href="${verificationUrl}">Verify Email</a>
       <p>This link expires in 24 hours.</p>
     `;
 
+    //sending email to verify account
+
     await sendEmail(newUser.email, "Verify your email", message);
 
-    //@ Respond without login token - must verify first
     return res.status(201).json({
       message:
         "User registered successfully. Please check your email to verify your account.",
@@ -70,43 +67,28 @@ const registerUser = async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({
-      message: "Internal server error",
-      error: err.message,
-    });
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: err.message });
   }
 };
 
-//@ Verify user email with token sent in email
 const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
-    if (!token) {
+    if (!token)
       return res
         .status(400)
         .json({ message: "Verification token is required" });
-    }
 
-    //@ Decode and verify token
-    const decoded = require("jsonwebtoken").verify(
-      token,
-      process.env.JWT_SECRET
-    );
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
 
-    const userId = decoded.id;
-
-    //@ Find user
     const user = await prisma.user.findUnique({ where: { id: userId } });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    if (user.verified) {
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.verified)
       return res.status(400).json({ message: "User already verified" });
-    }
 
-    //@ Update user verified to true
     await prisma.user.update({
       where: { id: userId },
       data: { verified: true },
@@ -115,41 +97,28 @@ const verifyEmail = async (req, res) => {
     return res.status(200).json({ message: "Email verified successfully" });
   } catch (err) {
     console.error("[Verify Email Error]", err);
-    // @ Handle token expiration or invalid token errors
-    if (err.name === "TokenExpiredError") {
+    if (err.name === "TokenExpiredError")
       return res.status(400).json({ message: "Verification token expired" });
-    }
-    if (err.name === "JsonWebTokenError") {
+    if (err.name === "JsonWebTokenError")
       return res.status(400).json({ message: "Invalid verification token" });
-    }
     return res.status(500).json({ message: "Internal server error" });
   }
 };
 
-//@ Resend Verification Email
 const resendVerificationEmail = async (req, res) => {
   const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ message: "Email is required" });
-  }
+  if (!email) return res.status(400).json({ message: "Email is required" });
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
-
     if (!user || user.verified) {
-      // @ Always return 200 even if user not found or already verified
       return res.status(200).json({
         message:
           "If your email is registered, a verification link has been sent.",
       });
     }
 
-    if (user.verified) {
-      return res.status(400).json({ message: "User is already verified" });
-    }
-    //@ Generate new token and email
-    const token = generateToken(user.id, { expiresIn: "1d" });
+    const token = generateAccessToken(user.id, { expiresIn: "1d" });
     const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
 
     const message = `
@@ -161,7 +130,6 @@ const resendVerificationEmail = async (req, res) => {
     `;
 
     await sendEmail(user.email, "Verify your email", message);
-
     return res.status(200).json({ message: "Verification email resent" });
   } catch (err) {
     console.error("[Resend Verification Error]", err);
@@ -169,52 +137,43 @@ const resendVerificationEmail = async (req, res) => {
   }
 };
 
-//@ Login user and return a JWT token
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-
     const user = await prisma.user.findUnique({ where: { email } });
-
-    // Invalid email or password
-    if (!user || !(await bcrypt.compare(password, user.password))) {
+    if (!user || !(await bcrypt.compare(password, user.password)))
       return res.status(401).json({ message: "Invalid credentials" });
-    }
-    // Check if user is verified
-    const token = generateToken(user.id);
 
-    return res.status(200).json({
+    const accessToken = generateAccessToken(user.id);
+    const refreshToken = await generateRefreshToken(user.id);
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+    res.json({
       message: "Login successful",
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-      },
+      token: accessToken,
+      user: { id: user.id, email: user.email },
     });
   } catch (err) {
     console.error("[Login Error]", err);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
-//@ Step 1: Send password reset email with token
 const requestPasswordReset = async (req, res) => {
   const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ message: "Email is required" });
-  }
+  if (!email) return res.status(400).json({ message: "Email is required" });
 
   try {
     const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const token = generateToken(user.id, { expiresIn: "1h" });
+    const token = generateAccessToken(user.id, { expiresIn: "1h" });
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
-
     const message = `
       <h1>Password Reset</h1>
       <p>Click the link below to reset your password:</p>
@@ -223,7 +182,6 @@ const requestPasswordReset = async (req, res) => {
     `;
 
     await sendEmail(email, "Reset your password", message);
-
     return res.status(200).json({ message: "Password reset link sent" });
   } catch (err) {
     console.error("[Request Reset Error]", err);
@@ -231,14 +189,13 @@ const requestPasswordReset = async (req, res) => {
   }
 };
 
-//@ Step 2: Reset user password using token
 const resetPassword = async (req, res) => {
   const { token, newPassword } = req.body;
 
   if (!token || !newPassword) {
-    return res.status(400).json({
-      message: "Token and new password are required",
-    });
+    return res
+      .status(400)
+      .json({ message: "Token and new password are required" });
   }
 
   const isStrongPassword = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$/.test(
@@ -253,17 +210,12 @@ const resetPassword = async (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-
-    console.log(`[Decoded Reset Token] User ID: ${userId}`);
+    const userId = decoded.userId;
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
     await prisma.user.update({
       where: { id: userId },
       data: { password: hashedPassword },
@@ -272,34 +224,63 @@ const resetPassword = async (req, res) => {
     return res.status(200).json({ message: "Password reset successful" });
   } catch (err) {
     console.error("[Reset Password Error]", err);
-    if (err.name === "TokenExpiredError") {
+    if (err.name === "TokenExpiredError")
       return res.status(400).json({ message: "Reset token expired" });
-    }
-    if (err.name === "JsonWebTokenError") {
+    if (err.name === "JsonWebTokenError")
       return res.status(400).json({ message: "Invalid reset token" });
-    }
     return res.status(500).json({ message: "Internal server error" });
   }
 };
 
-//@ Logout user by verifying and acknowledging token (stateless)
 const logout = async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    console.log("Authorization Header:", authHeader);
+    const token = req.cookies.refreshToken;
+    if (!token)
+      return res.status(400).json({ message: "No refresh token provided" });
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Unauthorized: No token provided" });
-    }
-
-    const token = authHeader.split(" ")[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log("Decoded Token:", decoded);
-
-    return res.status(200).json({ message: "Logout successful" });
+    await revokeRefreshToken(token);
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+    });
+    res.json({ message: "Logout successful" });
   } catch (err) {
-    console.error("JWT verification error:", err.message);
-    return res.status(401).json({ error: err.message });
+    console.error("[Logout Error]", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+const refreshAccessToken = async (req, res) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token)
+      return res.status(401).json({ message: "No refresh token provided" });
+
+    const entry = await prisma.refreshToken.findUnique({
+      where: { token },
+      include: { user: true },
+    });
+    if (!entry || entry.revoked || entry.expiresAt < new Date())
+      return res.status(403).json({ message: "Invalid or expired token" });
+
+    await prisma.refreshToken.update({
+      where: { token },
+      data: { revoked: true },
+    });
+
+    const newRefreshToken = await generateRefreshToken(entry.user.id);
+    const accessToken = generateAccessToken(entry.user.id);
+    res.cookie("refreshToken", newRefreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+      maxAge: 30 * 24 * 60 * 60 * 1000,
+    });
+    res.json({ message: "Access token refreshed", token: accessToken });
+  } catch (err) {
+    console.error("[Refresh AccessToken Error]", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
 
@@ -311,4 +292,5 @@ module.exports = {
   requestPasswordReset,
   resetPassword,
   logout,
+  refreshAccessToken,
 };
