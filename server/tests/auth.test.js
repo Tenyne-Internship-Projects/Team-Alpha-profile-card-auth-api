@@ -1,217 +1,415 @@
-// tests/auth.test.js
+/**
+ * tests/auth.controller.test.js
+ *
+ * Covers:
+ *  ├─ registerUser
+ *  ├─ verifyEmail
+ *  ├─ resendVerificationEmail
+ *  ├─ login
+ *  ├─ requestPasswordReset
+ *  ├─ resetPassword
+ *  ├─ logout
+ *  └─ refreshAccessToken
+ */
 
-// Set JWT_SECRET for tests (fixes "secretOrPrivateKey must have a value" error)
+/* ─────────────────────  GLOBAL ENV  ───────────────────── */
 process.env.JWT_SECRET = "testsecret";
+process.env.FRONTEND_URL = "https://client.test";
+process.env.NODE_ENV = "test";
 
+/* ─────────────────────  MODULE MOCKS  ─────────────────── */
 jest.mock("@prisma/client");
+jest.mock("bcryptjs");
+jest.mock("jsonwebtoken");
+jest.mock("../utils/generateToken");
+jest.mock("../utils/mailer");
 
-const bcrypt = require("bcryptjs");
 const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const tokenUtils = require("../utils/generateToken");
+const mailer = require("../utils/mailer");
+
 const prisma = new PrismaClient();
 
-// Mock bcryptjs consistently
-jest.mock("bcryptjs", () => ({
-  hash: jest.fn((password, salt) => Promise.resolve("hashed_" + password)),
-  compare: jest.fn((password, hashed) =>
-    Promise.resolve(hashed === "hashed_" + password)
-  ),
-}));
-
+/* ─────────────────────  CONTROLLER  ───────────────────── */
 const {
   registerUser,
+  verifyEmail,
+  resendVerificationEmail,
   login,
+  requestPasswordReset,
+  resetPassword,
   logout,
+  refreshAccessToken,
 } = require("../controllers/auth.controller");
 
+/* ─────────────────────  HELPER: mock res  ─────────────── */
+const mockRes = () => {
+  const res = {};
+  res.status = jest.fn(() => res);
+  res.json = jest.fn(() => res);
+  res.cookie = jest.fn(() => res);
+  res.clearCookie = jest.fn(() => res);
+  return res;
+};
+
+/* ─────────────────────  DEFAULT MOCKS  ────────────────── */
+beforeEach(() => {
+  jest.clearAllMocks();
+
+  /* bcrypt */
+  bcrypt.hash.mockImplementation((pw) => Promise.resolve("hashed_" + pw));
+  bcrypt.compare.mockImplementation((pw, hashed) =>
+    Promise.resolve(hashed === "hashed_" + pw)
+  );
+
+  /* token helpers */
+  tokenUtils.generateAccessToken.mockReturnValue("accessToken123");
+  tokenUtils.generateRefreshToken.mockResolvedValue("refreshToken123");
+  tokenUtils.revokeRefreshToken.mockResolvedValue(true);
+
+  /* JWT */
+  jwt.verify.mockImplementation(() => ({ userId: 1 }));
+
+  /* mailer */
+  mailer.sendEmail.mockResolvedValue(true);
+
+  /* prisma.user */
+  prisma.user.findUnique = jest.fn();
+  prisma.user.create = jest.fn();
+  prisma.user.update = jest.fn();
+
+  /* prisma.refreshToken */
+  prisma.refreshToken = {
+    findUnique: jest.fn(),
+    update: jest.fn(),
+  };
+});
+
+/* ─────────────────────  TEST SUITE  ───────────────────── */
 describe("Auth Controller", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-
-    // Mock prisma findUnique
-    prisma.user.findUnique = jest.fn(({ where: { email } }) => {
-      if (email === "existing@example.com") {
-        return Promise.resolve({
-          id: 1,
-          email: "existing@example.com",
-          password: "hashed_password123",
-        });
-      }
-      return Promise.resolve(null);
-    });
-
-    // Mock prisma create
-    prisma.user.create = jest.fn((data) =>
-      Promise.resolve({
-        id: 2,
-        email: data.data.email,
-        password: data.data.password,
-      })
-    );
-
-    // Mock prisma update (used in login and logout)
-    prisma.user.update = jest.fn((args) =>
-      Promise.resolve({
-        id: 1,
-        email: args.where.email || "existing@example.com",
-        token: args.data.token || null,
-      })
-    );
-  });
-
+  /* ────────────────  registerUser  ─────────────── */
   describe("registerUser", () => {
-    it("should register a new user successfully", async () => {
+    it("fails on weak password", async () => {
       const req = {
-        body: {
-          email: "john@example.com",
-          password: "password123",
-        },
-        files: [],
+        body: { fullname: "A", email: "a@test.io", password: "123" },
       };
-      const res = {
-        status: jest.fn(() => res),
-        json: jest.fn(),
-      };
+      const res = mockRes();
 
       await registerUser(req, res);
-
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: "john@example.com" },
-      });
-      expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            email: "john@example.com",
-            password: expect.any(String),
-          }),
-        })
-      );
-      expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "User registered successfully" })
-      );
+      expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it("should return 400 if user already exists", async () => {
+    it("fails when user already exists", async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 1 });
       const req = {
-        body: {
-          email: "existing@example.com",
-          password: "password123",
-        },
-        files: [],
+        body: { fullname: "A", email: "a@test.io", password: "Password1" },
       };
-      const res = {
-        status: jest.fn(() => res),
-        json: jest.fn(),
-      };
+      const res = mockRes();
 
       await registerUser(req, res);
-
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: "existing@example.com" },
-      });
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "User already exists" })
-      );
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
+
+    it("registers successfully and sends email", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue({
+        id: 2,
+        fullname: "A",
+        email: "a@test.io",
+      });
+
+      const req = {
+        body: { fullname: "A", email: "a@test.io", password: "Password1" },
+      };
+      const res = mockRes();
+
+      await registerUser(req, res);
+
+      expect(prisma.user.create).toHaveBeenCalled();
+      expect(mailer.sendEmail).toHaveBeenCalledWith(
+        "a@test.io",
+        expect.stringContaining("Verify"),
+        expect.stringContaining("Verify Email")
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
   });
 
-  describe("login", () => {
-    it("should login successfully with correct credentials", async () => {
-      const req = {
-        body: {
-          email: "existing@example.com",
-          password: "password123",
-        },
-      };
-      const res = {
-        status: jest.fn(() => res),
-        json: jest.fn(),
-      };
+  /* ────────────────  verifyEmail  ─────────────── */
+  describe("verifyEmail", () => {
+    it("requires token parameter", async () => {
+      const req = { query: {} };
+      const res = mockRes();
 
-      await login(req, res);
+      await verifyEmail(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
 
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: "existing@example.com" },
+    it("marks unverified account as verified", async () => {
+      prisma.user.findUnique
+        .mockResolvedValueOnce({ id: 1, verified: false }) // fetch user
+        .mockResolvedValueOnce({ id: 1, verified: true }); // after update
+
+      const req = { query: { token: "goodtoken" } };
+      const res = mockRes();
+
+      await verifyEmail(req, res);
+
+      expect(jwt.verify).toHaveBeenCalledWith(
+        "goodtoken",
+        process.env.JWT_SECRET
+      );
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { verified: true },
       });
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "Login successful" })
-      );
     });
 
-    it("should return 400 if user does not exist", async () => {
-      const req = {
-        body: {
-          email: "nonexistent@example.com",
-          password: "password123",
-        },
-      };
-      const res = {
-        status: jest.fn(() => res),
-        json: jest.fn(),
-      };
+    it("blocks already verified users", async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 1, verified: true });
+      const req = { query: { token: "already" } };
+      const res = mockRes();
+
+      await verifyEmail(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it("handles expired token", async () => {
+      jwt.verify.mockImplementation(() => {
+        const err = new Error("expired");
+        err.name = "TokenExpiredError";
+        throw err;
+      });
+      const req = { query: { token: "old" } };
+      const res = mockRes();
+
+      await verifyEmail(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  /* ────────────────  resendVerificationEmail  ─────────── */
+  describe("resendVerificationEmail", () => {
+    it("requires email field", async () => {
+      const req = { body: {} };
+      const res = mockRes();
+
+      await resendVerificationEmail(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it("sends email if user exists & unverified", async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 1,
+        verified: false,
+        fullname: "A",
+        email: "a@test.io",
+      });
+      const req = { body: { email: "a@test.io" } };
+      const res = mockRes();
+
+      await resendVerificationEmail(req, res);
+      expect(mailer.sendEmail).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it("silently succeeds for verified or absent user", async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 1, verified: true });
+      const req = { body: { email: "a@test.io" } };
+      const res = mockRes();
+
+      await resendVerificationEmail(req, res);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mailer.sendEmail).not.toHaveBeenCalled();
+    });
+  });
+
+  /* ────────────────────  login  ─────────────────── */
+  describe("login", () => {
+    it("rejects invalid credentials", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      const req = { body: { email: "bad@test.io", password: "x" } };
+      const res = mockRes();
+
+      await login(req, res);
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("rejects wrong password", async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 1,
+        password: "hashed_Password1",
+        email: "e@test.io",
+      });
+      bcrypt.compare.mockResolvedValue(false);
+
+      const req = { body: { email: "e@test.io", password: "wrong" } };
+      const res = mockRes();
+
+      await login(req, res);
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("logs in & sets refresh cookie", async () => {
+      prisma.user.findUnique.mockResolvedValue({
+        id: 1,
+        password: "hashed_Password1",
+        email: "e@test.io",
+      });
+      const req = { body: { email: "e@test.io", password: "Password1" } };
+      const res = mockRes();
 
       await login(req, res);
 
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: "nonexistent@example.com" },
-      });
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "Invalid email or password" })
+      expect(res.cookie).toHaveBeenCalledWith(
+        "refreshToken",
+        "refreshToken123",
+        expect.objectContaining({ httpOnly: true })
       );
-    });
-
-    it("should return 400 if password is incorrect", async () => {
-      const req = {
-        body: {
-          email: "existing@example.com",
-          password: "wrongpassword",
-        },
-      };
-      const res = {
-        status: jest.fn(() => res),
-        json: jest.fn(),
-      };
-
-      // Override bcrypt.compare mock to return false here
-      bcrypt.compare.mockImplementation(() => Promise.resolve(false));
-
-      await login(req, res);
-
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: "existing@example.com" },
-      });
-      expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "Invalid email or password" })
+        expect.objectContaining({
+          message: "Login successful",
+          token: "accessToken123",
+        })
       );
     });
   });
 
+  /* ────────────────  requestPasswordReset  ───────────── */
+  describe("requestPasswordReset", () => {
+    it("returns 404 when email not found", async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      const req = { body: { email: "x@test.io" } };
+      const res = mockRes();
+
+      await requestPasswordReset(req, res);
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it("sends reset email", async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 1, email: "a@test.io" });
+      const req = { body: { email: "a@test.io" } };
+      const res = mockRes();
+
+      await requestPasswordReset(req, res);
+      expect(mailer.sendEmail).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
+
+  /* ──────────────────  resetPassword  ────────────────── */
+  describe("resetPassword", () => {
+    it("rejects weak password", async () => {
+      const req = { body: { token: "t", newPassword: "123" } };
+      const res = mockRes();
+
+      await resetPassword(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it("handles invalid JWT", async () => {
+      jwt.verify.mockImplementation(() => {
+        const err = new Error("bad");
+        err.name = "JsonWebTokenError";
+        throw err;
+      });
+      const req = { body: { token: "bad", newPassword: "Password1" } };
+      const res = mockRes();
+
+      await resetPassword(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it("updates password on success", async () => {
+      prisma.user.findUnique.mockResolvedValue({ id: 1 });
+      const req = { body: { token: "good", newPassword: "Password1" } };
+      const res = mockRes();
+
+      await resetPassword(req, res);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 1 },
+        data: { password: "hashed_Password1" },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
+
+  /* ─────────────────────  logout  ─────────────────────── */
   describe("logout", () => {
-    it("should logout successfully", async () => {
-      const req = {
-        body: {
-          email: "existing@example.com",
-        },
-      };
-      const res = {
-        status: jest.fn(() => res),
-        json: jest.fn(),
-      };
+    it("needs refresh token cookie", async () => {
+      const req = { cookies: {} };
+      const res = mockRes();
+
+      await logout(req, res);
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it("revokes token and clears cookie", async () => {
+      const req = { cookies: { refreshToken: "old" } };
+      const res = mockRes();
 
       await logout(req, res);
 
-      expect(prisma.user.update).toHaveBeenCalledWith({
-        where: { email: "existing@example.com" },
-        data: { token: null },
+      expect(tokenUtils.revokeRefreshToken).toHaveBeenCalledWith("old");
+      expect(res.clearCookie).toHaveBeenCalledWith(
+        "refreshToken",
+        expect.objectContaining({ httpOnly: true })
+      );
+      expect(res.json).toHaveBeenCalledWith({ message: "Logout successful" });
+    });
+  });
+
+  /* ────────────────  refreshAccessToken  ─────────────── */
+  describe("refreshAccessToken", () => {
+    it("requires cookie", async () => {
+      const req = { cookies: {} };
+      const res = mockRes();
+
+      await refreshAccessToken(req, res);
+      expect(res.status).toHaveBeenCalledWith(401);
+    });
+
+    it("rejects invalid/expired token", async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue(null);
+      const req = { cookies: { refreshToken: "bad" } };
+      const res = mockRes();
+
+      await refreshAccessToken(req, res);
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it("refreshes and returns new tokens", async () => {
+      prisma.refreshToken.findUnique.mockResolvedValue({
+        token: "old",
+        revoked: false,
+        expiresAt: new Date(Date.now() + 10000),
+        user: { id: 1 },
       });
-      expect(res.status).toHaveBeenCalledWith(200);
+
+      const req = { cookies: { refreshToken: "old" } };
+      const res = mockRes();
+
+      await refreshAccessToken(req, res);
+
+      expect(prisma.refreshToken.update).toHaveBeenCalledWith({
+        where: { token: "old" },
+        data: { revoked: true },
+      });
+      expect(res.cookie).toHaveBeenCalledWith(
+        "refreshToken",
+        "refreshToken123",
+        expect.objectContaining({ httpOnly: true })
+      );
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "Logout successful" })
+        expect.objectContaining({
+          message: "Access token refreshed",
+          token: "accessToken123",
+        })
       );
     });
   });
