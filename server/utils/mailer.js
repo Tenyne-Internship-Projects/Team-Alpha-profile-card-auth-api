@@ -13,7 +13,7 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Send a plain email
+ * Send a plain email to this format
  * @param {string} to "jaafarsallau2001@gmail.com"
  * @param {string} subject "how are you buddy"
  * @param {string} html - "this is your verification"
