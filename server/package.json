@@ -1,0 +1,63 @@
+{
+  "name": "profile-card-auth-api",
+  "version": "1.0.0",
+  "description": "A secure and modular Express.js backend for managing user authentication and profile data, including JWT-based login, protected routes, profile card generation, and feature-ready endpoints for email verification, password reset, and badge uploads.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "test": "jest --config=jest.config.js"
+  },
+  "keywords": [
+    "express",
+    "nodejs",
+    "authentication",
+    "jwt",
+    "profile-api",
+    "user-authentication",
+    "secure-api",
+    "rest-api",
+    "express-backend",
+    "mongoose",
+    "mongodb",
+    "profile-management",
+    "email-verification",
+    "badge-upload",
+    "user-profile",
+    "fullstack-project",
+    "internship-project",
+    "team-alpha"
+  ],
+  "author": "Team-Alpha",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.0",
+    "@prisma/client": "^6.9.0",
+    "@sentry/node": "^9.26.0",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.5.0",
+    "g": "^2.0.1",
+    "helmet": "^8.1.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.5.0",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "nodemailer": "^6.9.8",
+    "pg": "^8.16.0",
+    "uuid": "^11.1.0",
+    "validator": "^13.9.0"
+  },
+  "devDependencies": {
+    "eslint": "^8.49.0",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.10",
+    "prisma": "^6.9.0",
+    "supertest": "^6.3.4"
+  }
+}

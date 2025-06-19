@@ -1,0 +1,12 @@
+
+
+.env
+
+# .gitignore
+
+uploads/*
+!uploads/.gitkeep
+
+node_modules/
+
+dist/
