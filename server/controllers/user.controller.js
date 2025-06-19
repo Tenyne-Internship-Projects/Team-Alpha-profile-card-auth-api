@@ -9,9 +9,11 @@ const {
 
 const isVerifiedProfile = require("../utils/verifiedProfile");
 
+const updateUserProfile = async (req, res) => {
+  const { userId } = req.params;
+
 //@ Fallback: Accept both `fullname` and `fullName`
   const nameToUse = req.body.fullname || req.body.fullName;
-
   const {
     gender,
     dateOfBirth = null,
