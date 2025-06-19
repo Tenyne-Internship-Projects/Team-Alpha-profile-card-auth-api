@@ -12,16 +12,8 @@ const profileUpdateSchema = Joi.object({
   specialization: Joi.string().optional(),
   location: Joi.string().optional(),
   bio: Joi.string().max(1500).optional(),
-  skills: Joi.string()
-    .custom((value, helpers) => {
-      try {
-        const parsed = JSON.parse(value);
-        if (!Array.isArray(parsed)) throw new Error();
-        return parsed;
-      } catch {
-        return helpers.error("any.invalid");
-      }
-    })
+  skills: Joi.alternatives()
+    .try(Joi.array().items(Joi.string()), Joi.string())
     .optional(),
   linkedIn: Joi.string().uri().optional().allow(""),
   github: Joi.string().uri().optional().allow(""),
