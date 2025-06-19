@@ -32,22 +32,7 @@ const updateUserProfile = async (req, res) => {
   const parsedDOB = new Date(dateOfBirth);
   const isValidDate = (d) => d instanceof Date && !isNaN(d);
   const safeDOB = isValidDate(parsedDOB) ? parsedDOB : null;
-
-  // Validate age
-  const calculateAge = (dob) => {
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const monthDiff = today.getMonth() - dob.getMonth();
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate()))
-      age--;
-    return age;
-  };
-
-  const age = safeDOB ? calculateAge(safeDOB) : null;
-  if (age !== null && (age < 0 || age > 120)) {
-    return res.status(400).json({ message: "Invalid date of birth provided" });
-  }
-
+  
   // Parse salary and skills
   const safeSalary = !isNaN(Number(salaryExpectation))
     ? Number(salaryExpectation)
@@ -68,6 +53,12 @@ const updateUserProfile = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (!user.profile && !fullname) {
+      return res.status(400).json({
+        message: "Full name is required to create a new profile.",
+      });
     }
 
     // Build safe profileData object (only include fields if defined/non-empty)
@@ -359,6 +350,5 @@ module.exports = {
   deleteUserAccount,
   getUserBadges,
   uploadBadge,
-  updateUserProfile,
   uploadAvatarAndDocuments,
 };
