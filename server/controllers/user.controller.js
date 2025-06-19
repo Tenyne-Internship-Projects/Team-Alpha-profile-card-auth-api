@@ -9,10 +9,10 @@ const {
 
 const isVerifiedProfile = require("../utils/verifiedProfile");
 
-const updateUserProfile = async (req, res) => {
-  const { userId } = req.params;
+//@ Fallback: Accept both `fullname` and `fullName`
+  const nameToUse = req.body.fullname || req.body.fullName;
+
   const {
-    fullname,
     gender,
     dateOfBirth = null,
     profession,
@@ -28,17 +28,18 @@ const updateUserProfile = async (req, res) => {
     password,
   } = req.body;
 
-  // Parse and validate DOB
+  // Parse and validate date of birth
   const parsedDOB = new Date(dateOfBirth);
   const isValidDate = (d) => d instanceof Date && !isNaN(d);
   const safeDOB = isValidDate(parsedDOB) ? parsedDOB : null;
-  
-  // Parse salary and skills
+
+  // Parse numeric salary
   const safeSalary = !isNaN(Number(salaryExpectation))
     ? Number(salaryExpectation)
     : null;
 
-  let parsedSkills;
+  // Parse skills array
+  let parsedSkills = [];
   try {
     parsedSkills = Array.isArray(skills) ? skills : JSON.parse(skills);
   } catch {
@@ -55,15 +56,16 @@ const updateUserProfile = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    if (!user.profile && !fullname) {
+    // Require full name only when creating a new profile
+    if (!user.profile && !nameToUse) {
       return res.status(400).json({
         message: "Full name is required to create a new profile.",
       });
     }
 
-    // Build safe profileData object (only include fields if defined/non-empty)
+    // Construct safe profile data
     const profileData = {
-      ...(fullname && { fullName: fullname }),
+      ...(nameToUse && { fullName: nameToUse }),
       ...(gender && { gender }),
       ...(safeDOB && { dateOfBirth: safeDOB }),
       ...(profession && { profession }),
@@ -78,9 +80,9 @@ const updateUserProfile = async (req, res) => {
       ...(safeSalary !== null && { salaryExpectation: safeSalary }),
     };
 
-    // Optional hashed password
+    // Build user update payload
     const userData = {
-      ...(fullname && { fullname }),
+      ...(nameToUse && { fullname: nameToUse }),
       ...(password && { password: await bcrypt.hash(password, 10) }),
       profile: user.profile ? { update: profileData } : { create: profileData },
     };
@@ -103,7 +105,6 @@ const updateUserProfile = async (req, res) => {
     });
   }
 };
-
 //@ Upload avatar and documents for a user
 const uploadAvatarAndDocuments = async (req, res) => {
   try {
