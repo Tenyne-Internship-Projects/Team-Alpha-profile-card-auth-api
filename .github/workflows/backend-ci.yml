@@ -1,4 +1,4 @@
-name: Backend CI
+name: 🧪 Backend CI
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
     branches: ["main", "dev"]
 
 jobs:
-  build-and-test:
+  backend-ci:
+    name: Build, Lint & Test (Backend)
     runs-on: ubuntu-latest
 
     defaults:
@@ -15,20 +16,32 @@ jobs:
         working-directory: server
 
     steps:
+      # Checkout repository
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # Set up Node.js with cache
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: "18"
+          cache: "npm" # Automatically caches node_modules via package-lock.json
 
+      # Install dependencies
       - name: Install dependencies
         run: npm ci
 
+      # Run ESLint
       - name: Lint code
-        run: |
-          npx eslint . || echo "Lint warnings detected, fix them before merging."
+        run: npx eslint .
 
-      - name: Run tests
-        run: npm test -- --passWithNoTests
+      #  Run tests with Jest and generate coverage
+      - name: Run Jest tests with coverage
+        run: npm test -- --passWithNoTests --coverage
+
+      #  Upload Jest coverage report (optional)
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: server/coverage
