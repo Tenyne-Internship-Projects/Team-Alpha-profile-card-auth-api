@@ -4,8 +4,8 @@
   "description": "A secure and modular Express.js backend for managing user authentication and profile data, including JWT-based login, protected routes, profile card generation, and feature-ready endpoints for email verification, password reset, and badge uploads.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js",
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
     "test": "jest --config=jest.config.js"
   },
   "keywords": [
