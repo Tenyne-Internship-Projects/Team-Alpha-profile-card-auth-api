@@ -1,5 +1,5 @@
 //@ Load performance monitoring tool (e.g., OpenTelemetry or custom)
-require("./instrument");
+// require("./instrument");
 
 //@ Load environment variables
 require("dotenv").config();
@@ -22,7 +22,6 @@ if (!fs.existsSync(badgeDir)) {
 
 //@ Import necessary modules
 const express = require("express");
-//@ Initialize the Express app
 const app = express();
 
 const cors = require("cors");
@@ -34,28 +33,8 @@ const { errorLogger } = require("./middlewares/errorLogger");
 const authRoutes = require("./routes/authRoutes");
 const userRoutes = require("./routes/profileRoutes");
 
-//@ Load Sentry for error tracking in production
-const Sentry = require("@sentry/node");
-
-const isProduction = process.env.NODE_ENV === "production";
-
-//@ Initialize Sentry before anything else
-if (isProduction && process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.NODE_ENV,
-    tracesSampleRate: 1.0,
-  });
-}
-
 //@ Connect to the database
 connectDB();
-
-//@ Initialize Sentry error tracking for production
-if (isProduction) {
-  app.use(Sentry.Handlers.requestHandler());
-  app.use(Sentry.Handlers.tracingHandler());
-}
 
 //@ Apply common middlewares
 app.use(cors({ origin: "*" }));
@@ -63,6 +42,7 @@ app.use(express.json());
 app.use(helmet());
 app.use(morgan("dev"));
 app.use(cookieParser());
+
 //@ Serve uploaded files (like avatars or badges)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
@@ -70,21 +50,11 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/auth", authRoutes);
 app.use("/api/profile", userRoutes);
 
-//@ Route to test if Sentry is catching errors
-app.get("/debug-sentry", (req, res) => {
-  throw new Error("Sentry test error");
-});
-
-//@ Handle Sentry errors after all routes
-if (isProduction) {
-  app.use(Sentry.Handlers.errorHandler());
-}
+//@ Basic fallback route
+app.get("/", (req, res) => res.send("API is running..."));
 
 //@ Custom error logger middleware
 app.use(errorLogger);
-
-//@ Basic fallback route
-app.get("/", (req, res) => res.send("API is running..."));
 
 //@ Final fallback error handler
 app.use((err, req, res, next) => {
