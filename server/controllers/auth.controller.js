@@ -70,7 +70,10 @@ const registerUser = async (req, res) => {
       verifyEmailHTML(verificationLink)
     );
 
-    const { accessToken, refreshToken } = generateTokens(newUser.id);
+    const { accessToken, refreshToken } = generateTokens(
+      newUser.id,
+      newUser.role
+    );
 
     // Set refresh token cookie
     res.cookie("refreshToken", refreshToken, {
@@ -176,19 +179,27 @@ const loginUser = async (req, res) => {
       return res.status(401).json({ message: "Please verify your email" });
     }
 
-    const { accessToken, refreshToken } = generateTokens(user.id);
+    // ✅ Pass role into token generator
+    const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
+    // ✅ Set refresh token in cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
+    // ✅ Return accessToken and role
     return res.status(200).json({
       message: "Login successful",
       accessToken,
-      user: { id: user.id, email: user.email, fullname: user.fullname },
+      user: {
+        id: user.id,
+        email: user.email,
+        fullname: user.fullname,
+        role: user.role, // ✅ Include this for client-side use if needed
+      },
     });
   } catch (err) {
     console.error("[Login Error]", err);
