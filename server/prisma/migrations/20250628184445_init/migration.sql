@@ -1,25 +1,26 @@
-/*
-  Warnings:
-
-  - You are about to drop the `Profile` table. If the table is not empty, all the data it contains will be lost.
-  - Added the required column `updatedAt` to the `users` table without a default value. This is not possible if the table is not empty.
-
-*/
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('client', 'admin', 'freelancer');
 
 -- CreateEnum
 CREATE TYPE "ProjectStatus" AS ENUM ('open', 'closed', 'repost');
 
--- DropForeignKey
-ALTER TABLE "Profile" DROP CONSTRAINT "Profile_userId_fkey";
+-- CreateTable
+CREATE TABLE "users" (
+    "id" TEXT NOT NULL,
+    "fullname" TEXT NOT NULL,
+    "email" TEXT NOT NULL,
+    "password" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "verified" BOOLEAN NOT NULL DEFAULT false,
+    "resetToken" TEXT,
+    "resetTokenExpires" TIMESTAMP(3),
+    "verificationToken" TEXT,
+    "verificationTokenExpires" TIMESTAMP(3),
+    "role" "Role" NOT NULL DEFAULT 'freelancer',
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
--- AlterTable
-ALTER TABLE "users" ADD COLUMN     "role" "Role" NOT NULL DEFAULT 'freelancer',
-ADD COLUMN     "updatedAt" TIMESTAMP(3) NOT NULL;
-
--- DropTable
-DROP TABLE "Profile";
+    CONSTRAINT "users_pkey" PRIMARY KEY ("id")
+);
 
 -- CreateTable
 CREATE TABLE "profiles" (
@@ -73,6 +74,9 @@ CREATE TABLE "projects" (
 
     CONSTRAINT "projects_pkey" PRIMARY KEY ("id")
 );
+
+-- CreateIndex
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "profiles_userId_key" ON "profiles"("userId");

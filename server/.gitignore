@@ -10,3 +10,4 @@ uploads/*
 node_modules/
 
 dist/
+/generated/prisma
