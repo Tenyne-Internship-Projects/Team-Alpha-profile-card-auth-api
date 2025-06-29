@@ -74,6 +74,7 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   clientId    String
+  requirement String?
   Client      User          @relation("UserProjects", fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([budget])
