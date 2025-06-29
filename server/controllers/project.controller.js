@@ -37,7 +37,7 @@ const getAllProjects = async (req, res) => {
   try {
     const projects = await prisma.project.findMany({
       include: {
-        client: true, // include related client info if needed
+        Client: true, // Correct relation name from schema
       },
       orderBy: {
         createdAt: "desc",
@@ -59,9 +59,9 @@ const getProjectById = async (req, res) => {
     const { id } = req.params;
 
     const project = await prisma.project.findUnique({
-      where: { id: Number(id) },
+      where: { id: id }, // it's a String, not Number
       include: {
-        client: true,
+        Client: true,
       },
     });
 
@@ -75,6 +75,7 @@ const getProjectById = async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch project" });
   }
 };
+
 //Update Project Mr Kay
 const updateProject = async (req, res) => {};
 //Delete Project Mr Kay
