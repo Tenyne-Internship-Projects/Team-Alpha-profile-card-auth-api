@@ -8,74 +8,96 @@ datasource db {
 }
 
 model User {
-  id                       String    @id @default(uuid())
+  id                       String             @id @default(uuid())
   fullname                 String
-  email                    String    @unique
+  email                    String             @unique
   password                 String
-  createdAt                DateTime  @default(now())
-  verified                 Boolean   @default(false)
+  createdAt                DateTime           @default(now())
+  verified                 Boolean            @default(false)
   resetToken               String?
   resetTokenExpires        DateTime?
   verificationToken        String?
   verificationTokenExpires DateTime?
-  role                     Role      @default(freelancer)
-  updatedAt                DateTime  @updatedAt
-  profile                  Profile?  @relation("UserProfile")
-  projects                 Project[] @relation("UserProjects")
+  role                     Role               @default(freelancer)
+  updatedAt                DateTime           @updatedAt
+
+  applications             Application[]      @relation("FreelancerApplications")
+  favorites                Favorite[]         @relation("FreelancerFavorites")
+  projects                 Project[]          @relation("UserProjects")
+
+  freelancerProfile        FreelancerProfile? @relation("FreelancerProfileUser")
+  clientProfile            ClientProfile?     @relation("ClientProfileUser")
 
   @@map("users")
 }
 
-model Profile {
+model FreelancerProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  fullName          String
+  gender            String
+  dateOfBirth       DateTime
+  profession        String
+  specialization    String
+  location          String
+  bio               String?
+  skills            String[]
+  avatarUrl         String?
+  documents         String[]
+  linkedIn          String?
+  github            String?
+  primaryEmail      String
+  phoneNumber       String
+  salaryExpectation Int?
+  isAvailable       Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation("FreelancerProfileUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("freelancer_profiles")
+}
+
+model ClientProfile {
   id                 String   @id @default(uuid())
   userId             String   @unique
-  fullName           String
-  gender             String
-  dateOfBirth        DateTime
-  profession         String
-  specialization     String
-  location           String
-  bio                String?
-  skills             String[]
-  avatarUrl          String?
-  documents          String[]
-  linkedIn           String?
-  github             String?
-  primaryEmail       String
-  phoneNumber        String
-  salaryExpectation  Int?
-  isAvailable        Boolean  @default(true)
   companyName        String?
   companyWebsite     String?
   companyIndustry    String?
   companySize        String?
   companyAddress     String?
-  isHiringFrequently Boolean  @default(false)
   companyLogo        String?
   hiringCategories   String[]
+  isHiringFrequently Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
-  user               User     @relation("UserProfile", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("profiles")
+  user               User     @relation("ClientProfileUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("client_profiles")
 }
 
 model Project {
-  id          String        @id @default(uuid())
-  title       String
-  description String
-  budget      Int
-  tags        String[]
-  deadline    DateTime
-  status      ProjectStatus @default(open)
-  deleted     Boolean       @default(false)
-  deletedAt   DateTime?
-  deletedBy   String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  clientId    String
-  requirement String?
-  Client      User          @relation("UserProjects", fields: [clientId], references: [id], onDelete: Cascade)
+  id               String        @id @default(uuid())
+  title            String
+  description      String
+  budget           Int
+  tags             String[]
+  deadline         DateTime
+  status           ProjectStatus @default(open)
+  deleted          Boolean       @default(false)
+  deletedAt        DateTime?
+  deletedBy        String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  clientId         String
+  requirement      String        @default("To be specified")
+  location         String        @default("Unknown")
+  responsibilities String[]      @default([])
+
+  applications     Application[] @relation("ProjectApplications")
+  favoritedBy      Favorite[]    @relation("ProjectFavorites")
+  Client           User          @relation("UserProjects", fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([budget])
   @@index([tags])
@@ -83,6 +105,35 @@ model Project {
   @@index([status])
   @@map("projects")
 }
+
+model Application {
+  id           String            @id @default(uuid())
+  projectId    String
+  freelancerId String
+  message      String?
+  status       ApplicationStatus @default(pending)
+  createdAt    DateTime          @default(now())
+
+  freelancer   User              @relation("FreelancerApplications", fields: [freelancerId], references: [id])
+  project      Project           @relation("ProjectApplications", fields: [projectId], references: [id])
+
+  @@unique([projectId, freelancerId], name: "unique_application")
+  @@map("applications")
+}
+
+model Favorite {
+  id           String   @id @default(uuid())
+  freelancerId String
+  projectId    String
+  createdAt    DateTime @default(now())
+
+  freelancer   User     @relation("FreelancerFavorites", fields: [freelancerId], references: [id])
+  project      Project  @relation("ProjectFavorites", fields: [projectId], references: [id])
+
+  @@unique([freelancerId, projectId], name: "freelancerId_projectId")
+  @@map("favorites")
+}
+
 
 enum Role {
   client
@@ -94,4 +145,10 @@ enum ProjectStatus {
   open
   closed
   repost
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
 }

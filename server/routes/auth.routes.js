@@ -12,7 +12,7 @@ const {
   refreshAccessToken,
 } = require("../controllers/auth.controller");
 
-const loginLimiter = require("../middlewares/rateLimiter");
+// const loginLimiter = require("../middlewares/rateLimiter");
 
 // =================== ✅ Test Route ===================
 router.get("/test", (req, res) => res.send("Route working"));
@@ -21,7 +21,7 @@ router.get("/test", (req, res) => res.send("Route working"));
 router.post("/register", registerUser);
 
 // =================  Authentication =================
-router.post("/login", loginLimiter, loginUser);
+router.post("/login", loginUser);
 router.post("/logout", logout);
 
 // ============ ✅ Email Verification ============

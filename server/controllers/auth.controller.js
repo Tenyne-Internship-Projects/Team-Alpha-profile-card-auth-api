@@ -54,6 +54,38 @@ const registerUser = async (req, res) => {
       },
     });
 
+    // Create profile based on role
+    if (newUser.role === "freelancer") {
+      await prisma.freelancerProfile.create({
+        data: {
+          userId: newUser.id,
+          fullName: newUser.fullname,
+          gender: "not specified",
+          dateOfBirth: new Date(),
+          profession: "",
+          specialization: "",
+          location: "",
+          primaryEmail: newUser.email,
+          phoneNumber: "",
+          skills: [],
+          documents: [],
+        },
+      });
+    } else if (newUser.role === "client") {
+      await prisma.clientProfile.create({
+        data: {
+          userId: newUser.id,
+          companyName: "",
+          companyWebsite: "",
+          companyIndustry: "",
+          companySize: "",
+          companyAddress: "",
+          companyLogo: "",
+          hiringCategories: [],
+        },
+      });
+    }
+
     // Log saved user
     console.log("✅ New user saved to DB:", {
       id: newUser.id,
