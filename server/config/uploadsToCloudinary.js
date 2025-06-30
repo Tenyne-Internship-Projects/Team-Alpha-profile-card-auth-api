@@ -2,7 +2,6 @@
 const cloudinary = require("cloudinary").v2;
 const { Readable } = require("stream");
 const dotenv = require("dotenv");
-const { logger } = require("../utils/logger");
 
 dotenv.config();
 
@@ -28,7 +27,7 @@ const uploadsToCloudinary = (fileBuffer, folder = "uploads") => {
       },
       (error, result) => {
         if (error) {
-          logger.error("Cloudinary upload error:", error.message);
+          console.log("Cloudinary upload error:", error.message);
           return reject(error);
         }
 
@@ -38,7 +37,7 @@ const uploadsToCloudinary = (fileBuffer, folder = "uploads") => {
           );
         }
 
-        logger.info(`Uploaded to Cloudinary: ${result.secure_url}`);
+        console.log(`Uploaded to Cloudinary: ${result.secure_url}`);
         resolve({
           secure_url: result.secure_url,
           public_id: result.public_id,
@@ -53,10 +52,10 @@ const uploadsToCloudinary = (fileBuffer, folder = "uploads") => {
 const deleteFromCloudinary = async (publicId) => {
   try {
     const result = await cloudinary.uploader.destroy(publicId);
-    logger.info(`Deleted from Cloudinary: ${publicId}`);
+    console.log(`Deleted from Cloudinary: ${publicId}`);
     return result;
   } catch (err) {
-    logger.error("Cloudinary delete error:", err.message);
+    console.log("Cloudinary delete error:", err.message);
     throw err;
   }
 };

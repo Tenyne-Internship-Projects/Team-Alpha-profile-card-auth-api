@@ -1,11 +1,15 @@
 const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
-const { uploadsToCloudinary } = require("../utils/uploadsToCloudinary");
+const { uploadsToCloudinary } = require("../config/uploadsToCloudinary");
 
-//@ Update user profile
-const updateUserProfile = async (req, res) => {
+const prisma = new PrismaClient();
+
+// Update freelancer profile
+const updateFreelancerProfile = async (req, res) => {
   const { userId } = req.params;
+  if (req.user.userId !== userId) {
+    return res.status(403).json({ message: "Unauthorized: access denied." });
+  }
   const nameToUse = req.body.fullname || req.body.fullName;
 
   const {
@@ -39,11 +43,11 @@ const updateUserProfile = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: true },
+      include: { freelancerProfile: true },
     });
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
+    if (!user || user.role !== "freelancer") {
+      return res.status(404).json({ message: "Freelancer not found" });
     }
 
     const profileData = {
@@ -65,31 +69,36 @@ const updateUserProfile = async (req, res) => {
     const userData = {
       ...(nameToUse && { fullname: nameToUse }),
       ...(password && { password: await bcrypt.hash(password, 10) }),
-      profile: user.profile ? { update: profileData } : { create: profileData },
+      freelancerProfile: user.freelancerProfile
+        ? { update: profileData }
+        : { create: profileData },
     };
 
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: userData,
-      include: { profile: true },
+      include: { freelancerProfile: true },
     });
 
     res.status(200).json({
-      message: "User profile updated successfully",
+      message: "Freelancer profile updated successfully",
       user: updatedUser,
     });
   } catch (err) {
-    console.error("Error updating user profile:", err);
+    console.error("Error updating freelancer profile:", err);
     res
       .status(500)
       .json({ message: "Internal server error", error: err.message });
   }
 };
 
-//@ Upload avatar and documents (Cloudinary)
-const uploadAvatarAndDocuments = async (req, res) => {
+// Upload avatar and documents
+const uploadFreelancerFiles = async (req, res) => {
   try {
     const { userId } = req.params;
+    if (req.user.userId !== userId) {
+      return res.status(403).json({ message: "Unauthorized: access denied." });
+    }
     const avatarFile = req.files?.avatar?.[0] || null;
     const documentFiles = req.files?.documents || [];
 
@@ -101,15 +110,17 @@ const uploadAvatarAndDocuments = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: true },
+      include: { freelancerProfile: true },
     });
 
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user || user.role !== "freelancer" || !user.freelancerProfile) {
+      return res.status(404).json({ message: "Freelancer profile not found" });
+    }
 
     let avatarUrl = null;
     let documentUrls = [];
 
-    if (avatarFile && avatarFile.buffer) {
+    if (avatarFile?.buffer) {
       const avatarResult = await uploadsToCloudinary(
         avatarFile.buffer,
         "avatars"
@@ -118,69 +129,64 @@ const uploadAvatarAndDocuments = async (req, res) => {
     }
 
     if (Array.isArray(documentFiles)) {
-      const uploadPromises = documentFiles.map((doc) =>
-        uploadsToCloudinary(doc.buffer, "documents")
+      const uploaded = await Promise.all(
+        documentFiles.map((file) =>
+          uploadsToCloudinary(file.buffer, "documents")
+        )
       );
-      const uploadedDocs = await Promise.all(uploadPromises);
-      documentUrls = uploadedDocs.map((file) => file.secure_url);
+      documentUrls = uploaded.map((f) => f.secure_url);
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
+    const updated = await prisma.freelancerProfile.update({
+      where: { id: user.freelancerProfile.id },
       data: {
-        profile: {
-          update: {
-            ...(avatarUrl && { avatarUrl }),
-            ...(documentUrls.length && { documents: { push: documentUrls } }),
-          },
-        },
+        ...(avatarUrl && { avatarUrl }),
+        ...(documentUrls.length && { documents: { push: documentUrls } }),
       },
-      include: { profile: true },
     });
 
     res.status(200).json({
       message: "Avatar and documents uploaded successfully",
-      user: updatedUser,
+      profile: updated,
     });
-  } catch (error) {
-    console.error("Upload error:", error);
+  } catch (err) {
+    console.error("Upload error:", err);
     res
       .status(500)
-      .json({ message: "Server error while uploading avatar/documents" });
+      .json({ message: "Internal server error", error: err.message });
   }
 };
 
-//@ Upload badge (Cloudinary)
+// Upload badge
 const uploadBadge = async (req, res) => {
   const { userId } = req.params;
+  if (req.user.userId !== userId) {
+    return res.status(403).json({ message: "Unauthorized: access denied." });
+  }
   const badgeFile = req.file;
 
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: true },
+      include: { freelancerProfile: true },
     });
 
-    if (!user || !user.profile) {
-      return res.status(404).json({ message: "User or profile not found" });
-    }
-
-    if (!user.verified) {
+    if (!user || !user.verified || !user.freelancerProfile) {
       return res
         .status(403)
-        .json({ message: "Only verified users can upload badges." });
+        .json({ message: "Only verified freelancers can upload badges." });
     }
 
-    if (!badgeFile || !badgeFile.buffer) {
+    if (!badgeFile?.buffer) {
       return res.status(400).json({ message: "No badge file uploaded." });
     }
 
     const badgeResult = await uploadsToCloudinary(badgeFile.buffer, "badges");
     const badgeUrl = badgeResult.secure_url;
-    const updatedBadges = [...(user.profile.badges || []), badgeUrl];
+    const updatedBadges = [...(user.freelancerProfile.badges || []), badgeUrl];
 
-    await prisma.profile.update({
-      where: { id: user.profile.id },
+    await prisma.freelancerProfile.update({
+      where: { id: user.freelancerProfile.id },
       data: { badges: updatedBadges },
     });
 
@@ -196,124 +202,119 @@ const uploadBadge = async (req, res) => {
   }
 };
 
-//@ Get all users
-const getAllUsers = async (req, res) => {
+// Get all freelancers
+const getAllFreelancers = async (req, res) => {
   try {
-    const users = await prisma.user.findMany({ include: { profile: true } });
-    res.status(200).json(users);
+    const freelancers = await prisma.user.findMany({
+      where: { role: "freelancer" },
+      include: { freelancerProfile: true },
+    });
+    res.status(200).json(freelancers);
   } catch (err) {
-    console.error("Error fetching users:", err);
+    console.error("Error fetching freelancers:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-//@ Get user profile by ID
-const getUserProfile = async (req, res) => {
+// Get freelancer by ID
+const getFreelancerById = async (req, res) => {
   const { userId } = req.params;
   try {
-    const user = await prisma.user.findUnique({
+    const freelancer = await prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: true },
+      include: { freelancerProfile: true },
     });
 
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!freelancer || freelancer.role !== "freelancer") {
+      return res.status(404).json({ message: "Freelancer not found" });
+    }
 
-    res.status(200).json(user);
+    res.status(200).json(freelancer);
   } catch (err) {
-    console.error("Error fetching user profile:", err);
+    console.error("Error fetching freelancer profile:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-//@ Delete user and profile
-const deleteUserAccount = async (req, res) => {
+// Delete freelancer account
+const deleteFreelancerAccount = async (req, res) => {
   const { userId } = req.params;
   try {
-    await prisma.profile.deleteMany({ where: { userId } });
+    await prisma.freelancerProfile.deleteMany({ where: { userId } });
     await prisma.user.delete({ where: { id: userId } });
 
-    res.status(200).json({ message: "User account deleted successfully" });
+    res
+      .status(200)
+      .json({ message: "Freelancer account deleted successfully" });
   } catch (err) {
-    console.error("Error deleting user account:", err);
+    console.error("Error deleting freelancer:", err);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-//@ Toggle availability
-const toggleAvailability = async (req, res) => {
+// Toggle availability
+const toggleFreelancerAvailability = async (req, res) => {
   const { userId } = req.params;
+  if (req.user.userId !== userId) {
+    return res.status(403).json({ message: "Unauthorized: access denied." });
+  }
   const { isAvailable } = req.body;
 
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: true },
+      include: { freelancerProfile: true },
     });
 
-    if (!user || !user.profile) {
-      return res.status(404).json({ message: "User or profile not found" });
+    if (!user || !user.freelancerProfile) {
+      return res.status(404).json({ message: "Freelancer not found" });
     }
 
-    const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        profile: {
-          update: {
-            isAvailable: Boolean(isAvailable),
-          },
-        },
-      },
-      include: { profile: true },
+    const updated = await prisma.freelancerProfile.update({
+      where: { id: user.freelancerProfile.id },
+      data: { isAvailable: Boolean(isAvailable) },
     });
 
     res.status(200).json({
-      message: `Availability updated to ${updatedUser.profile.isAvailable}`,
-      user: updatedUser,
+      message: `Availability updated to ${updated.isAvailable}`,
+      profile: updated,
     });
   } catch (err) {
     console.error("Error toggling availability:", err);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: err.message });
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
-//@ Get badges for verified users
-const getUserBadges = async (req, res) => {
+// Get badges
+const getFreelancerBadges = async (req, res) => {
   const { userId } = req.params;
 
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: { select: { badges: true } } },
+      include: { freelancerProfile: { select: { badges: true } } },
     });
 
-    if (!user || !user.profile) {
-      return res.status(404).json({ message: "User or profile not found" });
-    }
-
-    if (!user.verified) {
+    if (!user || !user.verified || !user.freelancerProfile) {
       return res
         .status(403)
-        .json({ message: "You must verify your email to view badges." });
+        .json({ message: "Not allowed or freelancer not found" });
     }
 
-    res.status(200).json({ badges: user.profile.badges });
+    res.status(200).json({ badges: user.freelancerProfile.badges });
   } catch (err) {
     console.error("Error fetching badges:", err);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: err.message });
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
 module.exports = {
-  getAllUsers,
-  getUserProfile,
-  updateUserProfile,
-  toggleAvailability,
-  deleteUserAccount,
-  getUserBadges,
+  updateFreelancerProfile,
+  uploadFreelancerFiles,
   uploadBadge,
-  uploadAvatarAndDocuments,
+  getAllFreelancers,
+  getFreelancerById,
+  deleteFreelancerAccount,
+  toggleFreelancerAvailability,
+  getFreelancerBadges,
 };
