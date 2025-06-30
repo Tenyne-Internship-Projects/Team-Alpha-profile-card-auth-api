@@ -10,7 +10,8 @@
     "dev:server": "nodemon server/server.js",
     "start:from-server": "cd server && node server.js",
     "dev:from-server": "cd server && nodemon server.js",
-    "test": "jest --config=jest.config.js"
+    "test": "jest --config=jest.config.js",
+    "build": "npx prisma generate"
   },
   "repository": {
     "type": "git",
