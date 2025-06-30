@@ -68,7 +68,7 @@ model ClientProfile {
   companyAddress     String?
   companyLogo        String?
   hiringCategories   String[]
-  isHiringFrequently Boolean  @default(false)
+  isHiringFrequently Boolean  @default(true)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
