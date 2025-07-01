@@ -55,7 +55,7 @@ const getAllProjects = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 10,
+      limit = 5,
       sortBy = "createdAt",
       sortOrder = "desc",
       search = "",
