@@ -6,9 +6,6 @@ const {
   getProjectById,
   updateProject,
   deleteProject,
-  getArchivedProjects,
-  archiveProject,
-  unarchiveProject,
 } = require("../controllers/project.controller");
 const verifyToken = require("../middlewares/authMiddleware");
 const authorizeRoles = require("../middlewares/roleMiddleware");
@@ -29,25 +26,5 @@ router.get("/:id", verifyToken, getProjectById);
 router.put("/:id", verifyToken, authorizeRoles("client"), updateProject);
 // Delete a project by id
 router.delete("/:id", verifyToken, authorizeRoles("client"), deleteProject);
-//archive project
-router.put(
-  "/archive/:id",
-  verifyToken,
-  authorizeRoles("client"),
-  archiveProject
-);
-//get archive project
-router.get(
-  "/archive",
-  verifyToken,
-  authorizeRoles("client"),
-  getArchivedProjects
-);
-//un archive project
-router.put(
-  "/unarchive/:id",
-  verifyToken,
-  authorizeRoles("client"),
-  unarchiveProject
-);
+
 module.exports = router;
