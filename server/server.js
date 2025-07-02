@@ -9,7 +9,8 @@ const cookieParser = require("cookie-parser");
 
 const { connectDB } = require("./config/db");
 const { errorLogger } = require("./middlewares/errorLogger");
-
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpec = require("./swagger");
 const authRoutes = require("./routes/auth.routes");
 const freelancerProfileRoutes = require("./routes/userProfile.routes");
 const clientProfileRoutes = require("./routes/clientProfile.routes");
@@ -61,6 +62,9 @@ app.use("/api/applications", applicationRoutes);
 
 // Root route
 app.get("/", (req, res) => res.send("API is running..."));
+
+// 👇 Open API Docs for all environments
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Error logger middleware
 app.use(errorLogger);

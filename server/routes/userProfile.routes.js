@@ -15,12 +15,65 @@ const {
 
 const router = express.Router();
 
-// Test route
+/**
+ * @swagger
+ * tags:
+ *   name: Freelancers
+ *   description: Freelancer profile and account management
+ */
+
+/**
+ * @swagger
+ * /api/profile/freelancer/test:
+ *   get:
+ *     summary: Test route to verify freelancer routes are working
+ *     tags: [Freelancers]
+ *     responses:
+ *       200:
+ *         description: Freelancer route working
+ */
 router.get("/test", (req, res) => {
   res.send("Freelancer route working ✅");
 });
 
-// Update freelancer profile
+/**
+ * @swagger
+ * /api/profile/freelancer/{userId}:
+ *   put:
+ *     summary: Update freelancer profile
+ *     tags: [Freelancers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Freelancer user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fullname:
+ *                 type: string
+ *               skills:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               bio:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Freelancer profile updated successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
 router.put(
   "/freelancer/:userId",
   verifyToken,
@@ -28,7 +81,44 @@ router.put(
   updateFreelancerProfile
 );
 
-// Upload avatar and documents
+/**
+ * @swagger
+ * /api/profile/freelancer-uploads/{userId}:
+ *   post:
+ *     summary: Upload freelancer avatar and documents
+ *     tags: [Freelancers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Freelancer user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *               documents:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Files uploaded successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
 router.post(
   "/freelancer-uploads/:userId",
   verifyToken,
@@ -40,7 +130,22 @@ router.post(
   uploadFreelancerFiles
 );
 
-// Get all freelancers (admin only)
+/**
+ * @swagger
+ * /api/profile/freelancers:
+ *   get:
+ *     summary: Get all freelancers (admin only)
+ *     tags: [Freelancers]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of freelancers
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
 router.get(
   "/freelancers",
   verifyToken,
@@ -48,10 +153,52 @@ router.get(
   getAllFreelancers
 );
 
-// Get freelancer profile
+/**
+ * @swagger
+ * /api/profile/freelancer/{userId}:
+ *   get:
+ *     summary: Get freelancer profile by user ID
+ *     tags: [Freelancers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Freelancer user ID
+ *     responses:
+ *       200:
+ *         description: Freelancer profile data
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/freelancer/:userId", verifyToken, getFreelancerById);
 
-// Toggle freelancer availability
+/**
+ * @swagger
+ * /api/profile/freelancer-availability/{userId}:
+ *   put:
+ *     summary: Toggle freelancer availability status
+ *     tags: [Freelancers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Freelancer user ID
+ *     responses:
+ *       200:
+ *         description: Availability status toggled successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
 router.put(
   "/freelancer-availability/:userId",
   verifyToken,
@@ -59,7 +206,39 @@ router.put(
   toggleFreelancerAvailability
 );
 
-// Upload badge (freelancer only)
+/**
+ * @swagger
+ * /api/profile/freelancer-badge/{userId}:
+ *   put:
+ *     summary: Upload badge image for freelancer
+ *     tags: [Freelancers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Freelancer user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               badge:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Badge uploaded successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
 router.put(
   "/freelancer-badge/:userId",
   verifyToken,
@@ -68,10 +247,52 @@ router.put(
   uploadBadge
 );
 
-// Get badges for a freelancer
+/**
+ * @swagger
+ * /api/profile/freelancer-badge/{userId}:
+ *   get:
+ *     summary: Get badges for a freelancer
+ *     tags: [Freelancers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Freelancer user ID
+ *     responses:
+ *       200:
+ *         description: List of badges
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/freelancer-badge/:userId", verifyToken, getFreelancerBadges);
 
-// Delete freelancer account (admin only)
+/**
+ * @swagger
+ * /api/profile/freelancer/{userId}:
+ *   delete:
+ *     summary: Delete freelancer account (admin only)
+ *     tags: [Freelancers]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Freelancer user ID
+ *     responses:
+ *       200:
+ *         description: Freelancer account deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
 router.delete(
   "/freelancer/:userId",
   verifyToken,
