@@ -17,6 +17,7 @@ const clientProfileRoutes = require("./routes/clientProfile.routes");
 const projectRoutes = require("./routes/project.routes");
 const applicationRoutes = require("./routes/applicantion.routes");
 const favoriteRoutes = require("./routes/favorites.routes");
+const archivedRoutes = require("./routes/archivedProject.routes");
 
 const app = express();
 
@@ -35,6 +36,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/profile", clientProfileRoutes);
 app.use("/api/profile", freelancerProfileRoutes);
 app.use("/api/project/favorite", favoriteRoutes);
+app.use("/api/project/archive", archivedRoutes);
 app.use("/api/project", projectRoutes);
 app.use("/api/applications", applicationRoutes);
 

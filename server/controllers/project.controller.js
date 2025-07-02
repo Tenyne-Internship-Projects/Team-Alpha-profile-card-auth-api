@@ -288,20 +288,20 @@ const archiveProject = async (req, res) => {
 };
 
 // Get archived projects
-const getArchivedProjects = async (req, res) => {
+const getClientProjects = async (req, res) => {
   try {
+    console.log("🔐 Authenticated user:", req.user);
+
     if (req.user.role !== "client") {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to view archived projects" });
+      console.log("❌ User is not a client. Role:", req.user.role);
+      return res.status(403).json({ message: "Unauthorized" });
     }
 
-    const projects = await prisma.project.findMany({
-      where: {
-        clientId: req.user.userId,
-        deleted: true,
-      },
-      orderBy: { deletedAt: "desc" },
+    console.log("📦 Fetching projects for client ID:", req.user.userId);
+
+    const allProjects = await prisma.project.findMany({
+      where: { clientId: req.user.userId },
+      orderBy: { createdAt: "desc" },
       include: {
         Client: {
           include: { clientProfile: true },
@@ -309,10 +309,22 @@ const getArchivedProjects = async (req, res) => {
       },
     });
 
-    res.status(200).json({ data: projects });
+    console.log("📥 Raw project results:", allProjects);
+
+    const active = allProjects.filter((p) => !p.deleted);
+    const archived = allProjects.filter((p) => p.deleted);
+
+    console.log(`✅ Active: ${active.length} | 🗂 Archived: ${archived.length}`);
+
+    return res.status(200).json({
+      data: {
+        active,
+        archived,
+      },
+    });
   } catch (err) {
-    console.error("[Get Archived Projects Error]", err);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("💥 [getClientProjects Error]:", err);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -365,6 +377,6 @@ module.exports = {
   updateProject,
   deleteProject,
   archiveProject,
-  getArchivedProjects,
+  getClientProjects,
   unarchiveProject,
 };
