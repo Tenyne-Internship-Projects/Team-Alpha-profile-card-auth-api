@@ -15,10 +15,23 @@ jest.mock("../utils/generateToken", () => () => ({
   refreshToken: "mockRefreshToken",
 }));
 
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { PrismaClient } = require("@prisma/client");
+
+// ✅ Setup manual mock structure for prisma
+const prismaMock = {
+  user: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+  },
+  freelancerProfile: {
+    create: jest.fn(),
+  },
+};
+
+PrismaClient.mockImplementation(() => prismaMock);
+const prisma = new PrismaClient();
 
 const {
   registerUser,
@@ -46,30 +59,26 @@ describe("Auth Controller", () => {
         body: {
           fullname: "John Doe",
           email: "john@example.com",
-          password: "Password1",
+          password: "Password1!",
           role: "freelancer",
         },
         files: [],
       };
 
       bcrypt.hash.mockResolvedValue("hashed_Password1");
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue({
+      prismaMock.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.create.mockResolvedValue({
         id: 1,
         fullname: "John Doe",
         email: "john@example.com",
         role: "freelancer",
         verified: false,
       });
-
-      // ✅ Fix: Mock freelancerProfile manually
-      prisma.freelancerProfile = {
-        create: jest.fn(() => Promise.resolve({})),
-      };
+      prismaMock.freelancerProfile.create.mockResolvedValue({});
 
       await registerUser(req, res);
 
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
         where: { email: "john@example.com" },
       });
       expect(res.status).toHaveBeenCalledWith(201);
@@ -105,12 +114,12 @@ describe("Auth Controller", () => {
         body: {
           fullname: "Jane Doe",
           email: "existing@example.com",
-          password: "Password1",
+          password: "Password1!",
         },
         files: [],
       };
 
-      prisma.user.findUnique.mockResolvedValue({
+      prismaMock.user.findUnique.mockResolvedValue({
         email: "existing@example.com",
       });
 
@@ -128,11 +137,11 @@ describe("Auth Controller", () => {
       const req = {
         body: {
           email: "verified@example.com",
-          password: "Password1",
+          password: "Password1!",
         },
       };
 
-      prisma.user.findUnique.mockResolvedValue({
+      prismaMock.user.findUnique.mockResolvedValue({
         id: 1,
         email: "verified@example.com",
         fullname: "Verified User",
@@ -164,11 +173,11 @@ describe("Auth Controller", () => {
       const req = {
         body: {
           email: "unverified@example.com",
-          password: "Password1",
+          password: "Password1!",
         },
       };
 
-      prisma.user.findUnique.mockResolvedValue({
+      prismaMock.user.findUnique.mockResolvedValue({
         id: 2,
         email: "unverified@example.com",
         password: "hashed_password",
@@ -193,7 +202,7 @@ describe("Auth Controller", () => {
         },
       };
 
-      prisma.user.findUnique.mockResolvedValue({
+      prismaMock.user.findUnique.mockResolvedValue({
         id: 3,
         email: "existing@example.com",
         password: "hashed_password",
@@ -214,11 +223,11 @@ describe("Auth Controller", () => {
       const req = {
         body: {
           email: "missing@example.com",
-          password: "Password1",
+          password: "Password1!",
         },
       };
 
-      prisma.user.findUnique.mockResolvedValue(null);
+      prismaMock.user.findUnique.mockResolvedValue(null);
 
       await loginUser(req, res);
 
