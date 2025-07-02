@@ -25,7 +25,7 @@ router.post("/login", loginUser);
 router.post("/logout", logout);
 
 // ============ ✅ Email Verification ============
-router.get("/verify-email/:token", verifyEmail);
+router.post("/verify-email/:token", verifyEmail);
 
 router.post("/resend-verification", resendVerificationEmail);
 
