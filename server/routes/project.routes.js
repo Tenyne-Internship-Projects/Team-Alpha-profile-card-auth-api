@@ -82,7 +82,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.get("/", verifyToken, getAllProjects);
+router.get("/",  getAllProjects);
 
 /**
  * @swagger
