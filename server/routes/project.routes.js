@@ -84,6 +84,14 @@ router.post(
  *         description: Unauthorized
  */
 
+router.get("/", getAllProjects);
+
+router.get(
+  "my-projects/:clientId",
+  verifyToken,
+  authorizeRoles("client"),
+  getAllClientProjects
+);
 
 /**
  * @swagger
