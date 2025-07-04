@@ -31,7 +31,7 @@ const createProject = async (req, res) => {
         responsibilities,
         location,
         deadline: new Date(deadline),
-        requirement, // ✅ Add this
+        requirement,
         Client: { connect: { id: clientId } },
       },
       include: {
@@ -131,6 +131,67 @@ const getAllProjects = async (req, res) => {
   } catch (error) {
     console.error("Error fetching projects:", error);
     res.status(500).json({ error: "Failed to fetch projects" });
+  }
+};
+
+// Get projects by a specific client
+const getAllClientProjects = async (req, res) => {
+  try {
+    const { clientId } = req.params;
+
+    if (req.user.userId !== clientId) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to access this project" });
+    }
+
+    // Optional query params for pagination
+    const {
+      page = 1,
+      limit = 5,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const skip = (Number(page) - 1) * Number(limit);
+    const take = Number(limit);
+
+    const client = await prisma.user.findUnique({ where: { id: clientId } });
+    if (!client) {
+      return res.status(404).json({ error: "Client not found" });
+    }
+
+    const where = {
+      Client: { id: clientId },
+      deleted: false,
+    };
+
+    const total = await prisma.project.count({ where });
+
+    const projects = await prisma.project.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { [sortBy]: sortOrder },
+      include: {
+        Client: {
+          include: { clientProfile: true },
+        },
+      },
+    });
+
+    res.status(200).json({
+      data: projects,
+      meta: {
+        total,
+        page: Number(page),
+        pageSize: take,
+        totalPages: Math.ceil(total / take),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching client projects:", error);
+    res.status(500).json({ error: "Failed to fetch client projects" });
   }
 };
 
@@ -293,7 +354,7 @@ const getClientProjects = async (req, res) => {
     console.log("🔐 Authenticated user:", req.user);
 
     if (req.user.role !== "client") {
-      console.log("❌ User is not a client. Role:", req.user.role);
+      console.log("User is not a client. Role:", req.user.role);
       return res.status(403).json({ message: "Unauthorized" });
     }
 
@@ -309,12 +370,12 @@ const getClientProjects = async (req, res) => {
       },
     });
 
-    console.log("📥 Raw project results:", allProjects);
+    console.log(" Raw project results:", allProjects);
 
     const active = allProjects.filter((p) => !p.deleted);
     const archived = allProjects.filter((p) => p.deleted);
 
-    console.log(`✅ Active: ${active.length} | 🗂 Archived: ${archived.length}`);
+    console.log(` Active: ${active.length} | Archived: ${archived.length}`);
 
     return res.status(200).json({
       data: {
@@ -323,11 +384,10 @@ const getClientProjects = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("💥 [getClientProjects Error]:", err);
+    console.error(" [getClientProjects Error]:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 // Unarchive project
 const unarchiveProject = async (req, res) => {
   const { id } = req.params;
@@ -373,6 +433,7 @@ const unarchiveProject = async (req, res) => {
 module.exports = {
   createProject,
   getAllProjects,
+  getAllClientProjects,
   getProjectById,
   updateProject,
   deleteProject,

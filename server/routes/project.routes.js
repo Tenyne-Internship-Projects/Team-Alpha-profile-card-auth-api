@@ -6,6 +6,7 @@ const {
   getProjectById,
   updateProject,
   deleteProject,
+  getAllClientProjects,
 } = require("../controllers/project.controller");
 const verifyToken = require("../middlewares/authMiddleware");
 const authorizeRoles = require("../middlewares/roleMiddleware");
@@ -83,6 +84,12 @@ router.post(
  *         description: Unauthorized
  */
 router.get("/", verifyToken, getAllProjects);
+router.get(
+  "my-projects/:cliedId",
+  verifyToken,
+  authorizeRoles("client"),
+  getAllClientProjects
+);
 
 /**
  * @swagger
