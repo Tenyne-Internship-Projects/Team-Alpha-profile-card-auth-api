@@ -85,9 +85,8 @@ router.post(
  */
 
 router.get("/", getAllProjects);
-
 router.get(
-  "my-projects/:clientId",
+  "/my-projects",
   verifyToken,
   authorizeRoles("client"),
   getAllClientProjects

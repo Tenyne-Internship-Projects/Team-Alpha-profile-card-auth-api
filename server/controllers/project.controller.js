@@ -135,17 +135,13 @@ const getAllProjects = async (req, res) => {
 };
 
 // Get projects by a specific client
+// controllers/projectController.js
+
 const getAllClientProjects = async (req, res) => {
   try {
-    const { clientId } = req.params;
+    const clientId = req.user.userId; // Get client ID from token
 
-    if (req.user.userId !== clientId) {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to access this project" });
-    }
-
-    // Optional query params for pagination
+    // Optional query params
     const {
       page = 1,
       limit = 5,
