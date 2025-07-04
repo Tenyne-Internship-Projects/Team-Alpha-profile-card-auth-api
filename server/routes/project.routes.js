@@ -6,6 +6,7 @@ const {
   getProjectById,
   updateProject,
   deleteProject,
+  getAllClientProjects,
 } = require("../controllers/project.controller");
 const verifyToken = require("../middlewares/authMiddleware");
 const authorizeRoles = require("../middlewares/roleMiddleware");
@@ -82,7 +83,7 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-router.get("/",  getAllProjects);
+
 
 /**
  * @swagger
