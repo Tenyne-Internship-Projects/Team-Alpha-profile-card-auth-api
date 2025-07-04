@@ -1,276 +1,206 @@
-# Profile Card & Auth API – Backend
+💼 Job Listing & Freelance Matchmaking API – Backend
+A secure job listing platform backend built with Node.js, Express.js, and PostgreSQL (Prisma ORM). This system connects clients who post projects with freelancers who can apply, while enabling clients to review, approve, reject, or mark applications as pending.
 
-A secure, scalable, and modular authentication API built with Node.js, PostgreSQL, and Express.js to support a dynamic freelancer profile card platform.
+Built by Team Alpha during the Tenyne Full-Stack Developer Internship.
 
-Developed by **Team Alpha** at **Tenyne Innovations** as part of the Full-Stack Developer Internship.
+🌍 Live Deployment
+Base API URL: https://team-alpha-profile-card-auth-api.onrender.com
 
-##Live Deployment
+GitHub Repository: Team-Alpha-profile-card-auth-api
 
-- **API Base URL:** [https://team-alpha-profile-card-auth-api.onrender.com](https://team-alpha-profile-card-auth-api.onrender.com)
-- **GitHub Repo:** [Team-Alpha-profile-card-auth-api](https://github.com/Tenyne-Internship-Projects/Team-Alpha-profile-card-auth-api)
-- **Demo Video:** [Loom walkthrough – Coming Soon]
-- **Postman Collection:** [Download Postman Collection](https://raw.githubusercontent.com/Tenyne-Internship-Projects/Team-Alpha-profile-card-auth-api/main/postman_collection.json)
+Postman Collection: Download here
 
-##Project Overview
+Demo Video: Coming soon
 
-This backend powers a full-stack freelancer platform enabling:
+🧾 What This Platform Does
+This platform is like a freelance job board. Here's how it works:
 
-- **Authentication:** Register, verify, login, password reset
-- **Profile Management:** Create, edit, upload avatar/documents, availability toggle, badge upload
-- **Database:** PostgreSQL with Prisma ORM
-- **Email Integration:** SMTP for verification & password reset
-- **Testing:** Comprehensive suite using Jest + Supertest
+Clients can:
 
-##Features
+Post jobs (projects)
 
-| Feature                       | Description                                                           |
-| ----------------------------- | --------------------------------------------------------------------- |
-| **User Registration & Login** | Secure signup/login with password hashing (bcrypt) and JWT issuance   |
-| **Email Verification**        | Secure email verification link with expiry and resend functionality   |
-| **Password Reset**            | Token-based flow to securely reset forgotten passwords                |
-| **Profile Management**        | Full CRUD on profile info, avatar and document uploads (via `multer`) |
-| **Availability Toggle**       | Freelancers can set availability as "Open for Work"                   |
-| **Badge Upload**              | Upload icons for tech stacks and certificates                         |
-| **Testing Support**           | Full unit & integration tests with mocking via Jest + Supertest       |
-| **PostgreSQL Integration**    | Using Prisma ORM with UUIDs and clean relational schema               |
+View applications submitted by freelancers
 
-##Tech Stack
+Approve, reject, or set applications as pending
 
-| Layer                | Stack / Tool                |
-| -------------------- | --------------------------- |
-| **Backend**          | Node.js, Express.js         |
-| **Authentication**   | JWT, bcrypt                 |
-| **Database**         | PostgreSQL (via Prisma ORM) |
-| **File Uploads**     | Multer (local file storage) |
-| **Email**            | Nodemailer (SMTP)           |
-| **Testing**          | Jest, Supertest             |
-| **Environment Mgmt** | dotenv                      |
-| **Deployment**       | Render.com                  |
+Archive and unarchive projects
 
-##Project Structure
+Freelancers can:
 
+Register and build a profile
+
+Upload resumes, documents, and badges
+
+Search and apply to projects
+
+Manage their application history
+
+🧱 Tech Stack
+Layer	Tool / Framework
+Server	Node.js, Express.js
+Database	PostgreSQL with Prisma ORM
+Auth	JWT, bcrypt
+File Upload	Multer
+Email	Nodemailer (SMTP)
+Testing	Jest, Supertest
+Deployment	Render.com
+
+📁 Project Structure
+pgsql
+Copy
+Edit
 server/
 ├── controllers/
 ├── middleware/
 ├── models/
 ├── routes/
-├── utils/
-├── config/
 ├── uploads/
+├── utils/
 ├── prisma/
-├── tests/
 ├── server.js
-├── .env.example
-└── package.json
+└── .env.example
+🔧 Setup (Local)
+Clone the repo:
 
-##Setup Instructions
-
-###Prerequisites
-
-- Node.js (v16+)
-- PostgreSQL instance (local or cloud)
-- SMTP credentials (Amazon SES, Gmail, SendGrid, etc.)
-
-###Local Installation
-
-1. **Clone the repo**
-
+bash
+Copy
+Edit
 git clone https://github.com/Tenyne-Internship-Projects/Team-Alpha-profile-card-auth-api.git
 cd Team-Alpha-profile-card-auth-api
+Install dependencies:
 
-2. **Install dependencies**
-
+bash
+Copy
+Edit
 npm install
+Create a .env file:
 
-3. **Set up environment variables**
+bash
+Copy
+Edit
+cp .env.example .env
+Run database migration and generate Prisma client:
 
-`.env.example` to `.env`, then fill in your SMTP, PostgreSQL, and JWT secrets.
-
-4. **Apply migrations & generate Prisma client**
-
+bash
+Copy
+Edit
 npx prisma migrate dev --name init
 npx prisma generate
+Start development server:
 
-5. **Start the server**
-
+bash
+Copy
+Edit
 npm run dev
+🔐 Auth & Account Endpoints
+Method	Endpoint	Description
+POST	/api/auth/register	Register as client or freelancer
+POST	/api/auth/login	Login and receive JWT
+GET	/api/auth/verify-email	Email verification with token
+POST	/api/auth/resend-email	Resend verification link
+POST	/api/auth/forgot-password	Request a password reset
+POST	/api/auth/reset-password	Reset password with token
 
-The server will run at: [http://localhost:5000](http://localhost:5000)
+👤 Profile Management
+Method	Endpoint	Description
+GET	/api/profile	Get logged-in user's profile
+PUT	/api/profile/:userId	Update profile, avatar, and documents
+PATCH	/api/profile/:userId/availability	Set availability status
+POST	/api/profile/:userId/badges	Upload skill badges
+GET	/api/profile/:userId/badges	View uploaded badges
+DELETE	/api/profile/:userId	Soft-delete user account
 
-##API Endpoints
+📢 Projects – Client Side
+Method	Endpoint	Description
+POST	/api/project/create/:clientId	Create a new project
+GET	/api/project	Get all projects (active)
+GET	/api/project/:projectId	View one project
+PUT	/api/project/:projectId	Update a project
+DELETE	/api/project/:projectId	Delete a project
+PUT	/api/project/archive/:projectId	Archive a project
+GET	/api/project/archive	View archived projects
+PUT	/api/project/archive/unarchive/:projectId	Unarchive a project
 
-###Auth Routes
+💬 Applications – Freelancer to Client
+Method	Endpoint	Who Can Use	Description
+POST	/api/applications/apply/:projectId	Freelancer	Apply to a client’s project
+GET	/api/applications/my-applications	Freelancer	View your own applications
+GET	/api/applications	Client	View all applications to your projects
+GET	/api/applications/:applicationId	Client	View a specific application
+PUT	/api/applications/:applicationId	Client	Update status: approved, rejected, pending
 
-| Method | Endpoint                    | Description                    | Auth? |
-| ------ | --------------------------- | ------------------------------ | ----- |
-| POST   | `/api/auth/register`        | Register new user              | ✔️    |
-| POST   | `/api/auth/login`           | Login and receive JWT          | ✔️    |
-| GET    | `/api/auth/verify-email`    | Verify email with secure token | ✔️    |
-| POST   | `/api/auth/resend-email`    | Resend verification link       | ✔️    |
-| POST   | `/api/auth/forgot-password` | Send password reset email      | ✔️    |
-| POST   | `/api/auth/reset-password`  | Reset password using token     | ✔️    |
+✅ Application Status Flow
+Status	Description
+pending	Application submitted, but not reviewed yet
+approved	Client approved the freelancer's application
+rejected	Client rejected the freelancer's application
 
-####Sample Request: Register User
+🔍 Sample Request – Apply for a Job
+POST /api/applications/apply/:projectId
 
-**POST** `/api/auth/register`
-
-```json
+json
+Copy
+Edit
 {
-  "fullname": "Lius Rufus",
-  "email": "liusrufus@gmail.com",
-  "password": "yourSecurePassword123"
+  "message": "I'm excited to work on this project because of my experience with similar tasks."
 }
-```
-
-**Response**
-
-```json
-{
-  "message": "User registered successfully. Please verify your email."
-}
-```
-
-####Login Response
-
-````json
-{
-  "token": "jwt_token_here",
-  "user": {
-    "id": "uuid",
-    "fullname": "Lius Rufus",
-    "email": "liusrufus@gmail.com"
-  }
-}
-
-
-###Profile Routes
-
-| Method | Endpoint                            | Description                      | Auth? |
-| ------ | ----------------------------------- | -------------------------------- | ----- |
-| GET    | `/api/profile`                      | Get authenticated user's profile | ✔️    |
-| PUT    | `/api/profile/:userId`              | Update user profile + uploads    | ✔️    |
-| PATCH  | `/api/profile/:userId/availability` | Toggle availability status       | ✔️    |
-| POST   | `/api/profile/:userId/badges`       | Upload badge                     | ✔️    |
-| GET    | `/api/profile/:userId/badges`       | Get user's badges                | ✔️    |
-| DELETE | `/api/profile/:userId`              | Soft-delete user account         | ✔️    |
-
-####Example: Update Profile
-
-**PUT** `/api/profile/0cf72366-...`
 Headers:
 
-* `Authorization: Bearer <jwt_token>`
-* `Content-Type: multipart/form-data`
+Authorization: Bearer <JWT>
 
-**Body (multipart form data):**
+🧪 Testing
+Run unit and integration tests:
 
-```json
-{
-  "fullname": "Jane Doe",
-  "gender": "female",
-  "dateOfBirth": "1995-04-22",
-  "location": "Lagos, Nigeria",
-  "skills": ["JavaScript", "Postman", "Figma"]
-}
-````
-
-Attach:
-
-- `avatar` file
-- One or more `documents` (PDF)
-
-**Expected Response (200 OK):**
-
-```json
-{
-  "message": "User profile updated successfully",
-  "user": {
-    "id": "uuid",
-    "email": "jane@gmail.com",
-    "profile": {
-      "fullName": "Jane Doe",
-      "gender": "female",
-      "age": 29,
-      "dateOfBirth": "1995-04-22T00:00:00.000Z",
-      "avatarUrl": "/uploads/badges/123456.jpg",
-      "documents": ["/uploads/badges/resume.pdf"],
-      "skills": ["JavaScript", "Postman", "Figma"],
-      "isAvailable": true
-    }
-  }
-}
-
-
-##Testing Instructions
-
-Run all unit and integration tests:
-
+bash
+Copy
+Edit
 npm test
+Tests cover:
 
-Tests include:
+Auth flows
 
-* Auth flows
-* Profile routes
-* Middleware
-* Error handling
+Profile updates
 
-> External services like email and OAuth are mocked for deterministic testing.
+Application logic
 
+Edge cases and invalid input
 
-##Security & Robustness Highlights
+🔐 Security Measures
+Passwords hashed with bcrypt
 
-* Token expiry and renewal for email verification
-* Rate limiting on login & registration endpoints
-* Input sanitization and null-field handling
-* Server-side validation using Zod, Yup, or Joi
-* Utility functions like `safeField`, `safeArray`, and `calculateAge()`
-* File upload validations using `multer`
+Email token expiration + rate-limiting
 
+Secure JWT storage & validation
 
-##Screenshots / Demo Video
+File validation and size checks
 
-(Add actual screenshots here)
+Input validation using Zod or Joi
 
-Watch the demo video on Loom: **Demo Video Link** (coming soon)
+📦 Future Improvements
+Feature	Status
+Full test coverage	✅ Done
+Real-time notifications	🔜 Planned
+Chat between users	🔜 Planned
+Payment integration	🔜 Planned
 
+🤝 Built by Team Alpha
+Tenyne Full-Stack Developer Internship
 
-##Future Enhancements
+Project Manager: Arinola Akindele
 
-Feature                          Status
+Backend Engineers: Light Ikoyo, Elijah Peter, Ja’Afar Sallau
 
- Email resend on token expiry   Completed
- Password reset flow            Completed
- Full test coverage             Completed
- Rate limiting on auth routes   Completed
- Profile deletion flow          Completed
+Frontend Developer: Christfavour Oloba
 
-##Team & Collaboration
+UI/UX Designers: Emmanuel Olowo, Clinton Unaegbu
 
-Built by Team Alpha for the Tenyne Full-Stack Developer Internship.
+QA Tester: Olivia Edeh
 
-* PM: Arinola Akindele
-* Backend Developers: Light Ikoyo, Elijah Peter, Ja’Afar Sallau
-* Frontend Developer: Christfavour Oloba
-* UI/UX Designers: Emmanuel Olowo, Clinton Unaegbu
-* QA Tester: Olivia Edeh
+📬 Support & Contact
+Email: support@tenyne.com
 
-Workflow:
+Discord: #team-alpha channel in the Tenyne workspace
 
-* Feature branches → Pull Requests → Code Reviews → Merge
-* Task tracking via GitHub Project Boards + ClickUp
-* Communication via Discord (`#team-alpha`) & Google Meet
+🙌 Thank You
+Thanks for checking out the Job Listing & Freelance Matchmaking API! This project demonstrates real-world use of secure authentication, user profile management, job workflows, and application review – all designed to scale and integrate smoothly with frontend platforms.
 
-
-##Support & Contact
-
-* Email: [support@tenyne.com](mailto:support@tenyne.com)
-
-* Discord: `#team-alpha` on the Tenyne workspace
-
-##Thank You
-
-Thank you for reviewing the **Profile Card & Auth API – Backend**.
-
-This project showcases clean architecture, secure authentication, modular design, and a collaborative workflow, all built to scale with frontend integrations and future enhancements.
-
-```
