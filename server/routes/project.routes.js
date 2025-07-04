@@ -73,7 +73,7 @@ router.post(
  * @swagger
  * /api/project:
  *   get:
- *     summary: Get all projects (authenticated users)
+ *     summary: Get all projects
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -83,8 +83,24 @@ router.post(
  *       401:
  *         description: Unauthorized
  */
-
 router.get("/", getAllProjects);
+
+/**
+ * @swagger
+ * /api/project/my-projects:
+ *   get:
+ *     summary: Get all projects belonging to the authenticated client
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of client's own projects
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden
+ */
 router.get(
   "/my-projects",
   verifyToken,

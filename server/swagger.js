@@ -30,10 +30,8 @@ const options = {
     },
     security: [{ bearerAuth: [] }],
   },
-  apis: [path.join(__dirname, "routes", "*.js")], // ✅ Includes ALL route files
+  apis: [path.join(__dirname, "routes", "**", "*.js")], // ✅ Includes subfolders
 };
 
 const swaggerSpec = swaggerJSDoc(options);
-console.log("✅ Swagger loaded paths:", Object.keys(swaggerSpec.paths)); // optional debug
-
 module.exports = swaggerSpec;
