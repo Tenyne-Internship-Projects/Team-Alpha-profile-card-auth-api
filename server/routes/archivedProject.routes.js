@@ -1,12 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const {
-  getClientProjects,
   archiveProject,
   unarchiveProject,
 } = require("../controllers/project.controller");
 const verifyToken = require("../middlewares/authMiddleware");
 const authorizeRoles = require("../middlewares/roleMiddleware");
+const {
+  getAllClientProjects,
+} = require("../controllers/clientDashboard.controller");
 
 /**
  * @swagger
@@ -64,7 +66,7 @@ router.get(
   },
   verifyToken,
   authorizeRoles("client"),
-  getClientProjects
+  getAllClientProjects
 );
 
 /**
