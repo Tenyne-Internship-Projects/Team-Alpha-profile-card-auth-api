@@ -1,7 +1,7 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-// Create a new project
+// Create a new project (draft or active)
 const createProject = async (req, res) => {
   try {
     const { clientId } = req.params;
@@ -14,14 +14,19 @@ const createProject = async (req, res) => {
       location,
       deadline,
       requirement,
+      isDraft,
     } = req.body;
 
-    if (!title || !description || !budget || !deadline) {
+    if (!isDraft && (!title || !description || !budget || !deadline)) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     const client = await prisma.user.findUnique({ where: { id: clientId } });
     if (!client) return res.status(404).json({ error: "Client not found" });
+
+    const progressStatus = isDraft ? "draft" : "ongoing";
+    const status = progressStatus === "ongoing" ? "open" : "closed"; // ✅ automatic status assignment
+
     const project = await prisma.project.create({
       data: {
         title,
@@ -30,27 +35,28 @@ const createProject = async (req, res) => {
         tags,
         responsibilities,
         location,
-        deadline: new Date(deadline),
+        deadline: deadline ? new Date(deadline) : undefined,
         requirement,
         Client: { connect: { id: clientId } },
+        progressStatus,
+        status, // ✅ apply automatic logic
       },
-      include: {
-        Client: {
-          include: { clientProfile: true },
-        },
-      },
+      include: { Client: { include: { clientProfile: true } } },
     });
 
-    res
-      .status(201)
-      .json({ message: "Project created successfully", data: project });
+    res.status(201).json({
+      message: isDraft
+        ? "Draft saved successfully"
+        : "Project created successfully",
+      data: project,
+    });
   } catch (error) {
     console.error("Error creating project:", error);
     res.status(500).json({ error: "Failed to create project" });
   }
 };
 
-// Get all projects
+// Fetch all open and ongoing projects with filters and pagination
 const getAllProjects = async (req, res) => {
   try {
     const {
@@ -72,6 +78,7 @@ const getAllProjects = async (req, res) => {
     const where = {
       deleted: false,
       status: "open",
+      progressStatus: "ongoing", // ✅ Only fetch ongoing projects
       AND: [],
       OR: [
         { title: { contains: search, mode: "insensitive" } },
@@ -112,11 +119,7 @@ const getAllProjects = async (req, res) => {
       skip,
       take,
       orderBy: { [sortBy]: sortOrder },
-      include: {
-        Client: {
-          include: { clientProfile: true },
-        },
-      },
+      include: { Client: { include: { clientProfile: true } } },
     });
 
     res.status(200).json({
@@ -134,109 +137,38 @@ const getAllProjects = async (req, res) => {
   }
 };
 
-// Get projects by a specific client
-// controllers/projectController.js
-
-const getAllClientProjects = async (req, res) => {
-  try {
-    const clientId = req.user.userId; // Get client ID from token
-
-    // Optional query params
-    const {
-      page = 1,
-      limit = 5,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = req.query;
-
-    const skip = (Number(page) - 1) * Number(limit);
-    const take = Number(limit);
-
-    const client = await prisma.user.findUnique({ where: { id: clientId } });
-    if (!client) {
-      return res.status(404).json({ error: "Client not found" });
-    }
-
-    const where = {
-      Client: { id: clientId },
-      deleted: false,
-    };
-
-    const total = await prisma.project.count({ where });
-
-    const projects = await prisma.project.findMany({
-      where,
-      skip,
-      take,
-      orderBy: { [sortBy]: sortOrder },
-      include: {
-        Client: {
-          include: { clientProfile: true },
-        },
-      },
-    });
-
-    res.status(200).json({
-      data: projects,
-      meta: {
-        total,
-        page: Number(page),
-        pageSize: take,
-        totalPages: Math.ceil(total / take),
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching client projects:", error);
-    res.status(500).json({ error: "Failed to fetch client projects" });
-  }
-};
-
 // Get single project by ID
 const getProjectById = async (req, res) => {
   try {
     const { id } = req.params;
-
     const project = await prisma.project.findUnique({
       where: { id },
-      include: {
-        Client: {
-          include: { clientProfile: true },
-        },
-      },
+      include: { Client: { include: { clientProfile: true } } },
     });
 
-    if (!project) {
-      return res.status(404).json({ error: "Project not found" });
-    }
+    if (!project) return res.status(404).json({ error: "Project not found" });
 
     res.status(200).json({ data: project });
   } catch (error) {
-    console.error("Error fetching project by ID:", error);
+    console.error("Error fetching project:", error);
     res.status(500).json({ error: "Failed to fetch project" });
   }
 };
 
-// Update project
+// Update a project
 const updateProject = async (req, res) => {
-  const { id } = req.params;
-  const { title, description, budget, tags, deadline, status } = req.body;
-
   try {
-    const project = await prisma.project.findUnique({
-      where: { id },
-    });
+    const { id } = req.params;
+    const { title, description, budget, tags, deadline, status } = req.body;
 
-    if (!project || project.deleted) {
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project || project.deleted)
       return res.status(404).json({ message: "Project not found" });
-    }
 
-    if (req.user.userId !== project.clientId) {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to update this project" });
-    }
+    if (req.user.userId !== project.clientId)
+      return res.status(403).json({ message: "Unauthorized" });
 
-    const updatedProject = await prisma.project.update({
+    const updated = await prisma.project.update({
       where: { id },
       data: {
         title,
@@ -246,41 +178,29 @@ const updateProject = async (req, res) => {
         deadline: deadline ? new Date(deadline) : undefined,
         status,
       },
-      include: {
-        Client: {
-          include: { clientProfile: true },
-        },
-      },
+      include: { Client: { include: { clientProfile: true } } },
     });
 
-    res.status(200).json({
-      message: "Project updated successfully",
-      project: updatedProject,
-    });
-  } catch (err) {
-    console.error("[Update Project Error]", err);
+    res.status(200).json({ message: "Project updated", project: updated });
+  } catch (error) {
+    console.error("Error updating project:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// Delete project
+// Soft delete a project
 const deleteProject = async (req, res) => {
-  const { id } = req.params;
-
   try {
+    const { id } = req.params;
     const project = await prisma.project.findUnique({ where: { id } });
 
-    if (!project || project.deleted) {
+    if (!project || project.deleted)
       return res
         .status(404)
         .json({ message: "Project not found or already deleted" });
-    }
 
-    if (req.user.role !== "admin" && req.user.userId !== project.clientId) {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to delete this project" });
-    }
+    if (req.user.role !== "admin" && req.user.userId !== project.clientId)
+      return res.status(403).json({ message: "Unauthorized" });
 
     await prisma.project.update({
       where: { id },
@@ -292,22 +212,20 @@ const deleteProject = async (req, res) => {
     });
 
     res.status(200).json({ message: "Project deleted successfully" });
-  } catch (err) {
-    console.error("[Delete Project Error]", err);
+  } catch (error) {
+    console.error("Error deleting project:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// Archive project
+// Archive a closed project and mark it as cancelled
 const archiveProject = async (req, res) => {
-  const { id } = req.params;
-
   try {
+    const { id } = req.params;
+
     const project = await prisma.project.findUnique({ where: { id } });
 
-    if (!project) {
-      return res.status(404).json({ message: "Project not found" });
-    }
+    if (!project) return res.status(404).json({ message: "Not found" });
 
     if (project.status !== "closed") {
       return res
@@ -315,10 +233,8 @@ const archiveProject = async (req, res) => {
         .json({ message: "Only closed projects can be archived" });
     }
 
-    if (req.user.userId !== project.clientId) {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to archive this project" });
+    if (req.user.userId !== project.clientId && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized" });
     }
 
     const archived = await prisma.project.update({
@@ -327,81 +243,29 @@ const archiveProject = async (req, res) => {
         deleted: true,
         deletedAt: new Date(),
         deletedBy: req.user.userId,
+        progressStatus: "cancelled", // ✅ Automatically update progress
       },
-      include: {
-        Client: {
-          include: { clientProfile: true },
-        },
-      },
+      include: { Client: { include: { clientProfile: true } } },
     });
 
-    res
-      .status(200)
-      .json({ message: "Project archived successfully", project: archived });
-  } catch (err) {
-    console.error("[Archive Project Error]", err);
+    res.status(200).json({ message: "Project archived", project: archived });
+  } catch (error) {
+    console.error("Error archiving project:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-// Get archived projects
-const getClientProjects = async (req, res) => {
-  try {
-    console.log("🔐 Authenticated user:", req.user);
-
-    if (req.user.role !== "client") {
-      console.log("User is not a client. Role:", req.user.role);
-      return res.status(403).json({ message: "Unauthorized" });
-    }
-
-    console.log("📦 Fetching projects for client ID:", req.user.userId);
-
-    const allProjects = await prisma.project.findMany({
-      where: { clientId: req.user.userId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        Client: {
-          include: { clientProfile: true },
-        },
-      },
-    });
-
-    console.log(" Raw project results:", allProjects);
-
-    const active = allProjects.filter((p) => !p.deleted);
-    const archived = allProjects.filter((p) => p.deleted);
-
-    console.log(` Active: ${active.length} | Archived: ${archived.length}`);
-
-    return res.status(200).json({
-      data: {
-        active,
-        archived,
-      },
-    });
-  } catch (err) {
-    console.error(" [getClientProjects Error]:", err);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
-// Unarchive project
+// Unarchive a project
 const unarchiveProject = async (req, res) => {
-  const { id } = req.params;
-
   try {
+    const { id } = req.params;
     const project = await prisma.project.findUnique({ where: { id } });
 
-    if (!project || !project.deleted) {
-      return res
-        .status(404)
-        .json({ message: "Archived project not found or already active" });
-    }
+    if (!project || !project.deleted)
+      return res.status(404).json({ message: "Archived project not found" });
 
-    if (req.user.userId !== project.clientId) {
-      return res
-        .status(403)
-        .json({ message: "Unauthorized to unarchive this project" });
-    }
+    if (req.user.userId !== project.clientId)
+      return res.status(403).json({ message: "Unauthorized" });
 
     const restored = await prisma.project.update({
       where: { id },
@@ -410,18 +274,112 @@ const unarchiveProject = async (req, res) => {
         deletedAt: null,
         deletedBy: null,
       },
+      include: { Client: { include: { clientProfile: true } } },
+    });
+
+    res.status(200).json({ message: "Project unarchived", project: restored });
+  } catch (error) {
+    console.error("Error unarchiving project:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Mark project as completed and create payment
+const completeProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const project = await prisma.project.findUnique({
+      where: { id },
       include: {
-        Client: {
-          include: { clientProfile: true },
+        applications: {
+          where: {
+            status: "approved",
+          },
         },
       },
     });
 
-    res
-      .status(200)
-      .json({ message: "Project unarchived successfully", project: restored });
-  } catch (err) {
-    console.error("[Unarchive Project Error]", err);
+    if (!project) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    if (project.progressStatus === "completed") {
+      return res.status(400).json({ message: "Already completed" });
+    }
+
+    if (req.user.userId !== project.clientId && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const app = project.applications[0];
+    if (!app) {
+      return res.status(400).json({ message: "No approved freelancer" });
+    }
+
+    const payment = await prisma.payment.create({
+      data: {
+        projectId: project.id,
+        freelancerId: app.freelancerId,
+        amount: project.budget,
+      },
+    });
+
+    const updated = await prisma.project.update({
+      where: { id },
+      data: {
+        progressStatus: "completed",
+        paymentId: payment.id,
+      },
+      include: {
+        Client: { include: { clientProfile: true } },
+        payment: true,
+      },
+    });
+
+    res.status(200).json({ message: "Completed & paid", project: updated });
+  } catch (error) {
+    console.error("Error completing project:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Update project progress status
+
+const updateProjectProgress = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { progressStatus } = req.body;
+
+    const validStatuses = ["draft", "ongoing", "completed", "cancelled"];
+    if (!validStatuses.includes(progressStatus)) {
+      return res.status(400).json({ message: "Invalid progress status" });
+    }
+
+    const project = await prisma.project.findUnique({ where: { id } });
+    if (!project || project.deleted) {
+      return res.status(404).json({ message: "Project not found" });
+    }
+
+    if (req.user.userId !== project.clientId && req.user.role !== "admin") {
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+    const updatedProject = await prisma.project.update({
+      where: { id },
+      data: {
+        progressStatus,
+        status: progressStatus === "ongoing" ? "open" : "closed", // ✅ auto update status
+      },
+      include: { Client: { include: { clientProfile: true } } },
+    });
+
+    res.status(200).json({
+      message: "Project progress updated",
+      project: updatedProject,
+    });
+  } catch (error) {
+    console.error("Error updating project progress:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -429,11 +387,11 @@ const unarchiveProject = async (req, res) => {
 module.exports = {
   createProject,
   getAllProjects,
-  getAllClientProjects,
   getProjectById,
   updateProject,
   deleteProject,
   archiveProject,
-  getClientProjects,
   unarchiveProject,
+  completeProject,
+  updateProjectProgress,
 };

@@ -20,7 +20,8 @@ const projectRoutes = require("./routes/project.routes");
 const applicationRoutes = require("./routes/applicantion.routes");
 const favoriteRoutes = require("./routes/favorites.routes");
 const archivedRoutes = require("./routes/archivedProject.routes");
-
+const freelancerDashboad = require("./routes/freelancer.routes");
+const clientMetrics = require("./routes/metrics.routes");
 const app = express();
 
 // Connect DB
@@ -62,7 +63,8 @@ app.use("/api/project/favorite", favoriteRoutes);
 app.use("/api/project/archive", archivedRoutes);
 app.use("/api/project", projectRoutes);
 app.use("/api/applications", applicationRoutes);
-
+app.use("/api/freelancer-dashboard", freelancerDashboad);
+app.use("/api/client-metrics", clientMetrics);
 // Root Route
 app.get("/", (req, res) => res.send("API is running..."));
 
@@ -79,7 +81,7 @@ app.use(
   swaggerUi.setup(null, {
     explorer: true,
     swaggerOptions: {
-      url: "/swagger.json", // ✅ Swagger fetches the spec
+      url: "/swagger.json",
     },
   })
 );

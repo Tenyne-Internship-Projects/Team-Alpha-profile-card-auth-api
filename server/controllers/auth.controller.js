@@ -201,20 +201,45 @@ const resendVerificationEmail = async (req, res) => {
 const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
+  // 🚨 Validate request body
+  if (!email || !password) {
+    return res
+      .status(400)
+      .json({ message: "Email and password are required." });
+  }
+
   try {
+    console.log("🔍 Attempting login for:", email);
+
+    // 🔎 Find user by email
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ message: "Invalid credentials" });
+
+    if (!user) {
+      console.warn("⚠️ No user found with email:", email);
+      return res
+        .status(404)
+        .json({ message: `No user found with email: ${email}` });
     }
 
+    // 🔐 Compare passwords
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      console.warn("⚠️ Invalid password attempt for:", email);
+      return res.status(401).json({ message: "Invalid password" });
+    }
+
+    // ❗ Check verification
     if (!user.verified) {
-      return res.status(401).json({ message: "Please verify your email" });
+      console.warn("⚠️ Email not verified for:", email);
+      return res
+        .status(401)
+        .json({ message: "Please verify your email before logging in." });
     }
 
-    // ✅ Pass role into token generator
+    // ✅ Generate tokens
     const { accessToken, refreshToken } = generateTokens(user.id, user.role);
 
-    // ✅ Set refresh token in cookie
+    // 🍪 Set refresh token cookie
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -222,19 +247,21 @@ const loginUser = async (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
 
-    // ✅ Return accessToken and role
+    console.log("✅ Login successful for:", email);
+
+    // 📤 Return response
     return res.status(200).json({
       message: "Login successful",
       accessToken,
       user: {
         id: user.id,
-        email: user.email,
         fullname: user.fullname,
-        role: user.role, // ✅ Include this for client-side use if needed
+        email: user.email,
+        role: user.role,
       },
     });
   } catch (err) {
-    console.error("[Login Error]", err);
+    console.error("❌ [Login Error]:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
