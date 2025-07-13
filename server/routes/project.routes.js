@@ -6,23 +6,29 @@ const {
   getProjectById,
   updateProject,
   deleteProject,
-  getAllClientProjects,
+  completeProject,
+  updateProjectProgress,
 } = require("../controllers/project.controller");
+
 const verifyToken = require("../middlewares/authMiddleware");
 const authorizeRoles = require("../middlewares/roleMiddleware");
+
+const {
+  getAllClientProjects,
+} = require("../controllers/clientDashboard.controller");
 
 /**
  * @swagger
  * tags:
  *   name: Projects
- *   description: Project management routes
+ *   description: Project management endpoints for clients and freelancers
  */
 
 /**
  * @swagger
  * /api/project/create/{clientId}:
  *   post:
- *     summary: Create a new project (client only)
+ *     summary: Create a new project
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -32,35 +38,49 @@ const authorizeRoles = require("../middlewares/roleMiddleware");
  *         required: true
  *         schema:
  *           type: string
- *         description: Client ID creating the project
+ *         description: ID of the client creating the project
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - title
+ *               - description
+ *               - budget
+ *               - deadline
  *             properties:
  *               title:
  *                 type: string
  *               description:
  *                 type: string
  *               budget:
- *                 type: number
+ *                 type: integer
  *               deadline:
  *                 type: string
  *                 format: date
- *             required:
- *               - title
- *               - description
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               responsibilities:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *               requirement:
+ *                 type: string
+ *               location:
+ *                 type: string
  *     responses:
  *       201:
  *         description: Project created successfully
  *       400:
- *         description: Bad request
- *       401:
- *         description: Unauthorized
+ *         description: Missing required fields
  *       403:
  *         description: Forbidden
+ *       404:
+ *         description: Client not found
  */
 router.post(
   "/create/:clientId",
@@ -73,15 +93,47 @@ router.post(
  * @swagger
  * /api/project:
  *   get:
- *     summary: Get all projects
+ *     summary: Get all open projects (for freelancers/public)
  *     tags: [Projects]
- *     security:
- *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: minBudget
+ *         schema:
+ *           type: number
+ *       - in: query
+ *         name: maxBudget
+ *         schema:
+ *           type: number
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *           description: Comma-separated tags
  *     responses:
  *       200:
- *         description: List of all projects
- *       401:
- *         description: Unauthorized
+ *         description: List of projects
  */
 router.get("/", getAllProjects);
 
@@ -89,13 +141,13 @@ router.get("/", getAllProjects);
  * @swagger
  * /api/project/my-projects:
  *   get:
- *     summary: Get all projects belonging to the authenticated client
+ *     summary: Get all projects created by the authenticated client
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of client's own projects
+ *         description: Projects fetched successfully
  *       401:
  *         description: Unauthorized
  *       403:
@@ -112,7 +164,7 @@ router.get(
  * @swagger
  * /api/project/{id}:
  *   get:
- *     summary: Get project by ID
+ *     summary: Get a single project by its ID
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -122,12 +174,9 @@ router.get(
  *         required: true
  *         schema:
  *           type: string
- *         description: Project ID
  *     responses:
  *       200:
- *         description: Project details
- *       401:
- *         description: Unauthorized
+ *         description: Project data retrieved
  *       404:
  *         description: Project not found
  */
@@ -147,7 +196,6 @@ router.get("/:id", verifyToken, getProjectById);
  *         required: true
  *         schema:
  *           type: string
- *         description: Project ID to update
  *     requestBody:
  *       required: true
  *       content:
@@ -160,29 +208,31 @@ router.get("/:id", verifyToken, getProjectById);
  *               description:
  *                 type: string
  *               budget:
- *                 type: number
+ *                 type: integer
+ *               tags:
+ *                 type: array
+ *                 items:
+ *                   type: string
  *               deadline:
  *                 type: string
  *                 format: date
+ *               status:
+ *                 type: string
  *     responses:
  *       200:
  *         description: Project updated successfully
- *       400:
- *         description: Bad request
- *       401:
- *         description: Unauthorized
- *       403:
- *         description: Forbidden
  *       404:
  *         description: Project not found
+ *       403:
+ *         description: Unauthorized
  */
 router.put("/:id", verifyToken, authorizeRoles("client"), updateProject);
 
 /**
  * @swagger
- * /api/project/{id}:
- *   delete:
- *     summary: Delete a project (client only)
+ * /api/project/{id}/complete:
+ *   put:
+ *     summary: Mark a project as completed and trigger payment (client only)
  *     tags: [Projects]
  *     security:
  *       - bearerAuth: []
@@ -192,14 +242,87 @@ router.put("/:id", verifyToken, authorizeRoles("client"), updateProject);
  *         required: true
  *         schema:
  *           type: string
- *         description: Project ID to delete
  *     responses:
  *       200:
- *         description: Project deleted successfully
+ *         description: Project marked as completed and paid
+ *       400:
+ *         description: Already completed or no approved freelancer
  *       401:
  *         description: Unauthorized
  *       403:
  *         description: Forbidden
+ *       404:
+ *         description: Project not found
+ */
+router.put(
+  "/:id/complete",
+  verifyToken,
+  authorizeRoles("client"),
+  completeProject
+);
+
+/**
+ * @swagger
+ * /api/project/{id}/progress:
+ *   put:
+ *     summary: Update the progress status of a project (client only)
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - progressStatus
+ *             properties:
+ *               progressStatus:
+ *                 type: string
+ *                 enum: [draft, ongoing, completed, cancelled]
+ *     responses:
+ *       200:
+ *         description: Project progress updated
+ *       400:
+ *         description: Invalid status
+ *       403:
+ *         description: Unauthorized
+ *       404:
+ *         description: Project not found
+ */
+router.put(
+  "/:id/progress",
+  verifyToken,
+  authorizeRoles("client"),
+  updateProjectProgress
+);
+
+/**
+ * @swagger
+ * /api/project/{id}:
+ *   delete:
+ *     summary: Soft-delete a project (client only)
+ *     tags: [Projects]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Project deleted
+ *       403:
+ *         description: Unauthorized
  *       404:
  *         description: Project not found
  */

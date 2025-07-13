@@ -172,23 +172,56 @@ const updateApplicationStatus = async (req, res) => {
 
     const application = await prisma.application.findUnique({
       where: { id: applicationId },
-      include: {
-        project: true,
-      },
+      include: { project: true },
     });
 
     if (!application) {
       return res.status(404).json({ error: "Application not found" });
     }
 
-    if (req.user.userId !== application.project.clientId) {
+    const project = application.project;
+
+    if (req.user.userId !== project.clientId) {
       return res.status(403).json({ error: "Access denied" });
     }
 
+    // Update application status
     const updated = await prisma.application.update({
       where: { id: applicationId },
       data: { status },
     });
+
+    if (status === "approved") {
+      // ✅ Mark project as ongoing & open
+      await prisma.project.update({
+        where: { id: project.id },
+        data: {
+          progressStatus: "ongoing",
+          status: "open",
+        },
+      });
+    }
+
+    if (status === "rejected") {
+      // ❌ Check if no other approved applications exist
+      const hasApproved = await prisma.application.findFirst({
+        where: {
+          projectId: project.id,
+          status: "approved",
+          NOT: { id: applicationId }, // exclude the one we just rejected
+        },
+      });
+
+      if (!hasApproved) {
+        await prisma.project.update({
+          where: { id: project.id },
+          data: {
+            progressStatus: "cancelled",
+            status: "closed",
+          },
+        });
+      }
+    }
 
     return res.status(200).json({
       message: `Application ${status}`,

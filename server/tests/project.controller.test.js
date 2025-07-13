@@ -6,7 +6,8 @@ const {
   deleteProject,
   archiveProject,
   unarchiveProject,
-  getClientProjects,
+  completeProject,
+  updateProjectProgress,
 } = require("../controllers/project.controller");
 
 const { PrismaClient } = require("@prisma/client");
@@ -41,40 +42,55 @@ describe("Project Controller", () => {
   });
 
   describe("createProject", () => {
-    it("should create a new project", async () => {
+    it("creates a draft project", async () => {
       const req = mockRequest(
-        { userId: "client123", role: "client" },
+        {},
         {
-          title: "Project Title",
-          description: "Project Description",
-          budget: 1000,
-          tags: ["react", "node"],
-          responsibilities: "Responsibilities",
-          location: "Remote",
-          deadline: new Date().toISOString(),
-          requirement: "Must have experience",
+          isDraft: true,
         },
         { clientId: "client123" }
       );
       const res = mockResponse();
 
       prisma.user.findUnique.mockResolvedValue({ id: "client123" });
-      prisma.project.create.mockResolvedValue({
-        id: "project123",
-        ...req.body,
-      });
+      prisma.project.create.mockResolvedValue({ id: "project123" });
 
       await createProject(req, res);
 
-      expect(prisma.project.create).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "Project created successfully" })
+        expect.objectContaining({ message: "Draft saved successfully" })
       );
     });
 
-    it("should return 400 for missing required fields", async () => {
-      const req = mockRequest({}, { title: "Test" }, { clientId: "client123" });
+    it("creates an active project", async () => {
+      const req = mockRequest(
+        {},
+        {
+          title: "Project",
+          description: "Description",
+          budget: 1000,
+          deadline: new Date().toISOString(),
+          isDraft: false,
+        },
+        { clientId: "client123" }
+      );
+      const res = mockResponse();
+
+      prisma.user.findUnique.mockResolvedValue({ id: "client123" });
+      prisma.project.create.mockResolvedValue({ id: "project123" });
+
+      await createProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
+    it("returns 400 if required fields are missing", async () => {
+      const req = mockRequest(
+        {},
+        { title: "Test", isDraft: false },
+        { clientId: "client123" }
+      );
       const res = mockResponse();
 
       await createProject(req, res);
@@ -83,23 +99,45 @@ describe("Project Controller", () => {
     });
   });
 
+  describe("getAllProjects", () => {
+    it("returns paginated projects", async () => {
+      const req = mockRequest(
+        {},
+        {},
+        {},
+        {
+          page: "1",
+          limit: "2",
+        }
+      );
+      const res = mockResponse();
+
+      prisma.project.count.mockResolvedValue(2);
+      prisma.project.findMany.mockResolvedValue([{ id: "1" }, { id: "2" }]);
+
+      await getAllProjects(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.any(Array) })
+      );
+    });
+  });
+
   describe("getProjectById", () => {
-    it("should return project data if found", async () => {
+    it("returns project if found", async () => {
       const req = mockRequest({}, {}, { id: "project123" });
       const res = mockResponse();
 
-      prisma.project.findUnique.mockResolvedValue({
-        id: "project123",
-        title: "Sample",
-      });
+      prisma.project.findUnique.mockResolvedValue({ id: "project123" });
 
       await getProjectById(req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it("should return 404 if project not found", async () => {
-      const req = mockRequest({}, {}, { id: "invalidId" });
+    it("returns 404 if not found", async () => {
+      const req = mockRequest({}, {}, { id: "missing" });
       const res = mockResponse();
 
       prisma.project.findUnique.mockResolvedValue(null);
@@ -110,8 +148,135 @@ describe("Project Controller", () => {
     });
   });
 
+  describe("updateProject", () => {
+    it("updates project if authorized", async () => {
+      const req = mockRequest(
+        { userId: "client123" },
+        { title: "New" },
+        { id: "project123" }
+      );
+      const res = mockResponse();
+
+      prisma.project.findUnique.mockResolvedValue({
+        id: "project123",
+        clientId: "client123",
+      });
+      prisma.project.update.mockResolvedValue({ title: "New" });
+
+      await updateProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it("returns 403 if unauthorized", async () => {
+      const req = mockRequest({ userId: "other" }, {}, { id: "project123" });
+      const res = mockResponse();
+
+      prisma.project.findUnique.mockResolvedValue({ clientId: "client123" });
+
+      await updateProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+  });
+
   describe("deleteProject", () => {
-    it("should mark project as deleted", async () => {
+    it("soft deletes project", async () => {
+      const req = mockRequest(
+        { userId: "client123", role: "client" },
+        {},
+        { id: "project123" }
+      );
+      const res = mockResponse();
+
+      prisma.project.findUnique.mockResolvedValue({
+        clientId: "client123",
+        deleted: false,
+      });
+      prisma.project.update.mockResolvedValue({});
+
+      await deleteProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it("returns 403 if unauthorized", async () => {
+      const req = mockRequest({ userId: "other" }, {}, { id: "project123" });
+      const res = mockResponse();
+
+      prisma.project.findUnique.mockResolvedValue({
+        clientId: "client123",
+        deleted: false,
+      });
+
+      await deleteProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+  });
+
+  describe("archiveProject", () => {
+    it("archives closed project", async () => {
+      const req = mockRequest(
+        { userId: "client123", role: "client" },
+        {},
+        { id: "project123" }
+      );
+      const res = mockResponse();
+
+      prisma.project.findUnique.mockResolvedValue({
+        status: "closed",
+        clientId: "client123",
+      });
+      prisma.project.update.mockResolvedValue({});
+
+      await archiveProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it("returns 400 if project not closed", async () => {
+      const req = mockRequest(
+        { userId: "client123" },
+        {},
+        { id: "project123" }
+      );
+      const res = mockResponse();
+
+      prisma.project.findUnique.mockResolvedValue({
+        status: "open",
+        clientId: "client123",
+      });
+
+      await archiveProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe("unarchiveProject", () => {
+    it("restores a deleted project", async () => {
+      const req = mockRequest(
+        { userId: "client123" },
+        {},
+        { id: "project123" }
+      );
+      const res = mockResponse();
+
+      prisma.project.findUnique.mockResolvedValue({
+        deleted: true,
+        clientId: "client123",
+      });
+      prisma.project.update.mockResolvedValue({});
+
+      await unarchiveProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
+
+  describe("completeProject", () => {
+    it("marks project as completed and pays freelancer", async () => {
       const req = mockRequest(
         { userId: "client123", role: "client" },
         {},
@@ -122,20 +287,44 @@ describe("Project Controller", () => {
       prisma.project.findUnique.mockResolvedValue({
         id: "project123",
         clientId: "client123",
-        deleted: false,
+        progressStatus: "ongoing",
+        budget: 500,
+        applications: [{ freelancerId: "freelancer123", status: "approved" }],
       });
+
+      prisma.payment.create.mockResolvedValue({ id: "pay123" });
       prisma.project.update.mockResolvedValue({});
 
-      await deleteProject(req, res);
+      await completeProject(req, res);
 
-      expect(prisma.project.update).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it("should return 403 if unauthorized", async () => {
+    it("returns 400 if already completed", async () => {
       const req = mockRequest(
-        { userId: "otherUser", role: "client" },
+        { userId: "client123" },
         {},
+        { id: "project123" }
+      );
+      const res = mockResponse();
+
+      prisma.project.findUnique.mockResolvedValue({
+        progressStatus: "completed",
+        clientId: "client123",
+        applications: [],
+      });
+
+      await completeProject(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
+
+  describe("updateProjectProgress", () => {
+    it("updates progress status", async () => {
+      const req = mockRequest(
+        { userId: "client123", role: "client" },
+        { progressStatus: "completed" },
         { id: "project123" }
       );
       const res = mockResponse();
@@ -146,9 +335,24 @@ describe("Project Controller", () => {
         deleted: false,
       });
 
-      await deleteProject(req, res);
+      prisma.project.update.mockResolvedValue({});
 
-      expect(res.status).toHaveBeenCalledWith(403);
+      await updateProjectProgress(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it("returns 400 for invalid progress status", async () => {
+      const req = mockRequest(
+        {},
+        { progressStatus: "invalid" },
+        { id: "project123" }
+      );
+      const res = mockResponse();
+
+      await updateProjectProgress(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
     });
   });
 });

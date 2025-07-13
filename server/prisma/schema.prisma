@@ -7,26 +7,53 @@ datasource db {
   url      = env("POSTGRES_URI")
 }
 
+enum Role {
+  client
+  admin
+  freelancer
+}
+
+enum ProjectStatus {
+  open
+  closed
+  repost
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ProjectProgressStatus {
+  draft
+  ongoing
+  completed
+  cancelled
+}
+
 model User {
   id                       String             @id @default(uuid())
   fullname                 String
   email                    String             @unique
   password                 String
-  createdAt                DateTime           @default(now())
+  role                     Role               @default(freelancer)
   verified                 Boolean            @default(false)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
   resetToken               String?
   resetTokenExpires        DateTime?
   verificationToken        String?
   verificationTokenExpires DateTime?
-  role                     Role               @default(freelancer)
-  updatedAt                DateTime           @updatedAt
 
   applications             Application[]      @relation("FreelancerApplications")
   favorites                Favorite[]         @relation("FreelancerFavorites")
   projects                 Project[]          @relation("UserProjects")
-
   freelancerProfile        FreelancerProfile? @relation("FreelancerProfileUser")
   clientProfile            ClientProfile?     @relation("ClientProfileUser")
+  payments                 Payment[]          @relation("FreelancerPayments")
+  notifications            Notification[]     // NEW: Notifications for this user
 
   @@map("users")
 }
@@ -40,16 +67,16 @@ model FreelancerProfile {
   profession        String
   specialization    String
   location          String
+  primaryEmail      String
+  phoneNumber       String
+  salaryExpectation Int?
+  isAvailable       Boolean  @default(true)
   bio               String?
   skills            String[]
   avatarUrl         String?
   documents         String[]
   linkedIn          String?
   github            String?
-  primaryEmail      String
-  phoneNumber       String
-  salaryExpectation Int?
-  isAvailable       Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -70,7 +97,7 @@ model ClientProfile {
   hiringCategories   String[]
   isHiringFrequently Boolean  @default(true)
   createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  updatedAt          DateTime @default(now())
 
   user               User     @relation("ClientProfileUser", fields: [userId], references: [id], onDelete: Cascade)
 
@@ -78,26 +105,31 @@ model ClientProfile {
 }
 
 model Project {
-  id               String        @id @default(uuid())
+  id               String                @id @default(uuid())
   title            String
   description      String
   budget           Int
   tags             String[]
   deadline         DateTime
-  status           ProjectStatus @default(open)
-  deleted          Boolean       @default(false)
+  status           ProjectStatus         @default(open)
+  progressStatus   ProjectProgressStatus @default(draft)
+  requirement      String                @default("To be specified")
+  location         String                @default("Unknown")
+  responsibilities String[]              @default([])
+
+  deleted          Boolean               @default(false)
   deletedAt        DateTime?
   deletedBy        String?
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
-  clientId         String
-  requirement      String        @default("To be specified")
-  location         String        @default("Unknown")
-  responsibilities String[]      @default([])
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
 
-  applications     Application[] @relation("ProjectApplications")
-  favoritedBy      Favorite[]    @relation("ProjectFavorites")
-  Client           User          @relation("UserProjects", fields: [clientId], references: [id], onDelete: Cascade)
+  clientId         String
+  paymentId        String?
+
+  applications     Application[]         @relation("ProjectApplications")
+  favoritedBy      Favorite[]            @relation("ProjectFavorites")
+  payment          Payment?              @relation("ProjectPayment")
+  Client           User                  @relation("UserProjects", fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([budget])
   @@index([tags])
@@ -134,21 +166,30 @@ model Favorite {
   @@map("favorites")
 }
 
+model Payment {
+  id           String   @id @default(uuid())
+  projectId    String   @unique
+  freelancerId String
+  amount       Int
+  paidAt       DateTime @default(now())
 
-enum Role {
-  client
-  admin
-  freelancer
+  project      Project  @relation("ProjectPayment", fields: [projectId], references: [id])
+  freelancer   User     @relation("FreelancerPayments", fields: [freelancerId], references: [id])
+
+  @@map("payments")
 }
 
-enum ProjectStatus {
-  open
-  closed
-  repost
-}
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  type      String   
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
 
-enum ApplicationStatus {
-  pending
-  approved
-  rejected
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("notifications")
 }
