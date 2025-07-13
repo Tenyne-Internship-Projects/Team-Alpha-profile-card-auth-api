@@ -1,28 +1,24 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
+const sendNotification = require("../utils/sendNotification");
 
-//apply for project
+//  APPLY TO PROJECT
 const applyToProject = async (req, res) => {
   try {
     const { projectId } = req.params;
     const { message } = req.body;
     const freelancerId = req.user.userId;
 
-    // Must be a freelancer
     if (req.user.role !== "freelancer") {
       return res.status(403).json({ error: "Only freelancers can apply" });
     }
 
-    // Must be a valid, open, and not-deleted project
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-    });
+    const project = await prisma.project.findUnique({ where: { id: projectId } });
 
     if (!project || project.status !== "open" || project.deleted) {
       return res.status(400).json({ error: "This project is not available" });
     }
 
-    // Check if already applied
     const existing = await prisma.application.findUnique({
       where: {
         unique_application: {
@@ -33,18 +29,24 @@ const applyToProject = async (req, res) => {
     });
 
     if (existing) {
-      return res
-        .status(409)
-        .json({ error: "You have already applied to this project" });
+      return res.status(409).json({ error: "You have already applied to this project" });
     }
 
-    // Create application
     const application = await prisma.application.create({
       data: {
         projectId,
         freelancerId,
         message,
       },
+    });
+
+    // ✅ Notify the Client
+    await sendNotification({
+      userId: project.clientId,
+      title: "New Application Received",
+      message: `A freelancer has applied to your project "${project.title}".`,
+      type: "application",
+      io: req.app.get("io"),
     });
 
     return res.status(201).json({
@@ -57,24 +59,19 @@ const applyToProject = async (req, res) => {
   }
 };
 
+//  FREELANCER VIEWS THEIR APPLICATIONS
 const getMyApplications = async (req, res) => {
   try {
     const freelancerId = req.user.userId;
 
     if (req.user.role !== "freelancer") {
-      return res
-        .status(403)
-        .json({ error: "Only freelancers can access this" });
+      return res.status(403).json({ error: "Only freelancers can access this" });
     }
 
     const applications = await prisma.application.findMany({
       where: { freelancerId },
-      include: {
-        project: true,
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
+      include: { project: true },
+      orderBy: { createdAt: "desc" },
     });
 
     return res.status(200).json({ data: applications });
@@ -83,7 +80,8 @@ const getMyApplications = async (req, res) => {
     return res.status(500).json({ error: "Failed to fetch applications" });
   }
 };
-//get all applicantions
+
+//  CLIENT SEES ALL APPLICATIONS TO THEIR JOBS
 const getAllApplicationsByClient = async (req, res) => {
   try {
     const clientId = req.user.userId;
@@ -94,9 +92,7 @@ const getAllApplicationsByClient = async (req, res) => {
 
     const applications = await prisma.application.findMany({
       where: {
-        project: {
-          clientId: clientId,
-        },
+        project: { clientId },
       },
       include: {
         project: true,
@@ -109,9 +105,7 @@ const getAllApplicationsByClient = async (req, res) => {
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
     res.status(200).json({ data: applications });
@@ -120,19 +114,18 @@ const getAllApplicationsByClient = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch applications" });
   }
 };
+
+//  GET ALL APPLICANTS FOR A SPECIFIC PROJECT
 const getProjectApplicants = async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-    });
+    const project = await prisma.project.findUnique({ where: { id: projectId } });
 
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
 
-    // Authorization
     if (req.user.userId !== project.clientId) {
       return res.status(403).json({ error: "Access denied" });
     }
@@ -149,9 +142,7 @@ const getProjectApplicants = async (req, res) => {
           },
         },
       },
-      orderBy: {
-        createdAt: "desc",
-      },
+      orderBy: { createdAt: "desc" },
     });
 
     return res.status(200).json({ data: applicants });
@@ -161,6 +152,7 @@ const getProjectApplicants = async (req, res) => {
   }
 };
 
+//  CLIENT UPDATES APPLICATION STATUS (approved/rejected) + Notifies Freelancer
 const updateApplicationStatus = async (req, res) => {
   try {
     const { applicationId } = req.params;
@@ -185,14 +177,12 @@ const updateApplicationStatus = async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Update application status
     const updated = await prisma.application.update({
       where: { id: applicationId },
       data: { status },
     });
 
     if (status === "approved") {
-      // ✅ Mark project as ongoing & open
       await prisma.project.update({
         where: { id: project.id },
         data: {
@@ -203,12 +193,11 @@ const updateApplicationStatus = async (req, res) => {
     }
 
     if (status === "rejected") {
-      // ❌ Check if no other approved applications exist
       const hasApproved = await prisma.application.findFirst({
         where: {
           projectId: project.id,
           status: "approved",
-          NOT: { id: applicationId }, // exclude the one we just rejected
+          NOT: { id: applicationId },
         },
       });
 
@@ -222,6 +211,15 @@ const updateApplicationStatus = async (req, res) => {
         });
       }
     }
+
+    //  Notify Freelancer after application status update
+    await sendNotification({
+      userId: application.freelancerId,
+      title: `Application ${status}`,
+      message: `Your application for "${project.title}" has been marked as ${status}.`,
+      type: "application_status",
+      io: req.app.get("io"),
+    });
 
     return res.status(200).json({
       message: `Application ${status}`,
