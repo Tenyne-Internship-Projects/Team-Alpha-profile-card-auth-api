@@ -96,7 +96,7 @@ app.use("/api/project", projectRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/freelancer-dashboard", freelancerDashboad);
 app.use("/api/client-metrics", clientMetrics);
-app.use("/api/notifications", notificationRoutes); // ✅
+app.use("/api/notifications", notificationRoutes); 
 
 app.get("/", (req, res) => res.send("API is running..."));
 

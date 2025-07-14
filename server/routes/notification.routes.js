@@ -4,9 +4,9 @@ const {
   markAsRead,
   markAllAsRead,
   getUnreadCount
-} = require('../controllers/notification-controller');
+} = require('../controllers/notification.controller');
 
-const authMiddleware = require('../middleware/auth-middleware');
+const authMiddleware = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
