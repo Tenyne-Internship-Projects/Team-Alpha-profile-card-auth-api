@@ -2,7 +2,7 @@ const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 const sendNotification = require("../utils/sendNotification");
 
-//  APPLY TO PROJECT
+// ✅ Freelancer applies to a project
 const applyToProject = async (req, res) => {
   try {
     const { projectId } = req.params;
@@ -13,7 +13,9 @@ const applyToProject = async (req, res) => {
       return res.status(403).json({ error: "Only freelancers can apply" });
     }
 
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
 
     if (!project || project.status !== "open" || project.deleted) {
       return res.status(400).json({ error: "This project is not available" });
@@ -21,15 +23,14 @@ const applyToProject = async (req, res) => {
 
     const existing = await prisma.application.findUnique({
       where: {
-        unique_application: {
-          projectId,
-          freelancerId,
-        },
+        unique_application: { projectId, freelancerId },
       },
     });
 
     if (existing) {
-      return res.status(409).json({ error: "You have already applied to this project" });
+      return res
+        .status(409)
+        .json({ error: "You have already applied to this project" });
     }
 
     const application = await prisma.application.create({
@@ -40,7 +41,7 @@ const applyToProject = async (req, res) => {
       },
     });
 
-    // ✅ Notify the Client
+    // ✅ Notify the client
     await sendNotification({
       userId: project.clientId,
       title: "New Application Received",
@@ -59,13 +60,15 @@ const applyToProject = async (req, res) => {
   }
 };
 
-//  FREELANCER VIEWS THEIR APPLICATIONS
+// ✅ Freelancer views their own applications
 const getMyApplications = async (req, res) => {
   try {
     const freelancerId = req.user.userId;
 
     if (req.user.role !== "freelancer") {
-      return res.status(403).json({ error: "Only freelancers can access this" });
+      return res
+        .status(403)
+        .json({ error: "Only freelancers can access this" });
     }
 
     const applications = await prisma.application.findMany({
@@ -81,7 +84,7 @@ const getMyApplications = async (req, res) => {
   }
 };
 
-//  CLIENT SEES ALL APPLICATIONS TO THEIR JOBS
+// ✅ Client views all applications to their projects
 const getAllApplicationsByClient = async (req, res) => {
   try {
     const clientId = req.user.userId;
@@ -91,9 +94,7 @@ const getAllApplicationsByClient = async (req, res) => {
     }
 
     const applications = await prisma.application.findMany({
-      where: {
-        project: { clientId },
-      },
+      where: { project: { clientId } },
       include: {
         project: true,
         freelancer: {
@@ -115,13 +116,14 @@ const getAllApplicationsByClient = async (req, res) => {
   }
 };
 
-//  GET ALL APPLICANTS FOR A SPECIFIC PROJECT
+// ✅ Client views applicants for a specific project
 const getProjectApplicants = async (req, res) => {
   try {
     const { projectId } = req.params;
 
-    const project = await prisma.project.findUnique({ where: { id: projectId } });
-
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
     if (!project) {
       return res.status(404).json({ error: "Project not found" });
     }
@@ -152,7 +154,7 @@ const getProjectApplicants = async (req, res) => {
   }
 };
 
-//  CLIENT UPDATES APPLICATION STATUS (approved/rejected) + Notifies Freelancer
+// ✅ Client updates application status + sends notification
 const updateApplicationStatus = async (req, res) => {
   try {
     const { applicationId } = req.params;
@@ -182,6 +184,7 @@ const updateApplicationStatus = async (req, res) => {
       data: { status },
     });
 
+    // ✅ Update project status based on application
     if (status === "approved") {
       await prisma.project.update({
         where: { id: project.id },
@@ -212,7 +215,7 @@ const updateApplicationStatus = async (req, res) => {
       }
     }
 
-    //  Notify Freelancer after application status update
+    // ✅ Notify the freelancer
     await sendNotification({
       userId: application.freelancerId,
       title: `Application ${status}`,

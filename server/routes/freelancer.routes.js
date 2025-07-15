@@ -1,18 +1,20 @@
 const express = require("express");
 const router = express.Router();
+
 const verifyToken = require("../middlewares/authMiddleware");
 const authorizeRoles = require("../middlewares/roleMiddleware");
 
 const {
   getFreelancerEarningsGraph,
   getFreelancerMetricsCards,
+  getFreelancerVisitStats,
 } = require("../controllers/freelancerDashboard.controller");
 
 /**
  * @swagger
  * tags:
  *   name: Freelancer Dashboard
- *   description: Metrics and earnings overview for freelancers
+ *   description: Metrics, earnings, and visit stats for freelancers
  */
 
 /**
@@ -28,11 +30,57 @@ const {
  *         description: Metrics data retrieved successfully
  *         content:
  *           application/json:
- *             example:
- *               data:
- *                 totalEarnings: 3500
- *                 completedProjects: 12
- *                 ongoingProjects: 3
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 freelancerId:
+ *                   type: string
+ *                   example: da8315b6-135c-4ee5-9b88-e052725a6538
+ *                 projectStats:
+ *                   type: object
+ *                   properties:
+ *                     completed:
+ *                       type: integer
+ *                       example: 5
+ *                     ongoing:
+ *                       type: integer
+ *                       example: 2
+ *                     cancelled:
+ *                       type: integer
+ *                       example: 1
+ *                 applicationStats:
+ *                   type: object
+ *                   properties:
+ *                     total:
+ *                       type: integer
+ *                       example: 10
+ *                     pending:
+ *                       type: integer
+ *                       example: 3
+ *                     approved:
+ *                       type: integer
+ *                       example: 5
+ *                     rejected:
+ *                       type: integer
+ *                       example: 2
+ *                 projects:
+ *                   type: array
+ *                   description: Approved and non-deleted projects
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: string
+ *                         example: b3a91302-4ee0-420f-bb87-df7aa1fef567
+ *                       title:
+ *                         type: string
+ *                         example: "Landing Page Redesign"
+ *                       progressStatus:
+ *                         type: string
+ *                         example: "ongoing"
+ *                       deleted:
+ *                         type: boolean
+ *                         example: false
  *       401:
  *         description: Unauthorized - Missing or invalid token
  *       403:
@@ -55,38 +103,55 @@ router.get(
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: from
+ *         name: year
  *         schema:
- *           type: string
- *           format: date
- *         description: Start date for filtering (YYYY-MM-DD)
+ *           type: integer
+ *         description: Filter earnings by year (e.g. 2025)
  *       - in: query
- *         name: to
+ *         name: month
  *         schema:
- *           type: string
- *           format: date
- *         description: End date for filtering (YYYY-MM-DD)
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 12
+ *         description: Filter earnings by month (1-12)
  *       - in: query
- *         name: compareWithPrevious
+ *         name: compare
  *         schema:
  *           type: boolean
- *         description: Whether to compare with the previous period
+ *         description: Whether to compare with previous year (true/false)
  *     responses:
  *       200:
  *         description: Graph data retrieved successfully
  *         content:
  *           application/json:
- *             example:
- *               currentPeriod:
- *                 - date: "2025-06-01"
- *                   amount: 200
- *                 - date: "2025-06-02"
- *                   amount: 300
- *               previousPeriod:
- *                 - date: "2025-05-01"
- *                   amount: 150
- *                 - date: "2025-05-02"
- *                   amount: 100
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 freelancerId:
+ *                   type: string
+ *                   example: da8315b6-135c-4ee5-9b88-e052725a6538
+ *                 monthlyEarnings:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       month:
+ *                         type: string
+ *                         example: "2025-07"
+ *                       total:
+ *                         type: number
+ *                         example: 7000
+ *                 previousYearComparison:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       month:
+ *                         type: string
+ *                         example: "2024-07"
+ *                       total:
+ *                         type: number
+ *                         example: 6000
  *       401:
  *         description: Unauthorized - Missing or invalid token
  *       403:
@@ -97,6 +162,44 @@ router.get(
   verifyToken,
   authorizeRoles("freelancer"),
   getFreelancerEarningsGraph
+);
+
+/**
+ * @swagger
+ * /api/freelancer-dashboard/profile-visits/{userId}:
+ *   get:
+ *     summary: Get total profile visits (only by the freelancer)
+ *     tags: [Freelancer Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The ID of the freelancer (must match the logged-in user)
+ *     responses:
+ *       200:
+ *         description: Visit data retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 totalVisits:
+ *                   type: integer
+ *                   example: 23
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *       403:
+ *         description: Forbidden - Trying to access another user's stats
+ */
+router.get(
+  "/profile-visits/:userId",
+  verifyToken,
+  authorizeRoles("freelancer"),
+  getFreelancerVisitStats
 );
 
 module.exports = router;

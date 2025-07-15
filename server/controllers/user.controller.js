@@ -215,10 +215,11 @@ const getAllFreelancers = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
-// Get freelancer by ID
+// Get freelancer by ID and track profile visits
 const getFreelancerById = async (req, res) => {
   const { userId } = req.params;
+  const visitorId = req.user?.userId; // populated by your auth middleware
+
   try {
     const freelancer = await prisma.user.findUnique({
       where: { id: userId },
@@ -229,13 +230,54 @@ const getFreelancerById = async (req, res) => {
       return res.status(404).json({ message: "Freelancer not found" });
     }
 
-    res.status(200).json(freelancer);
+    // Prevent self-visits from being tracked
+    if (visitorId && visitorId !== userId) {
+      console.log("👁 Visitor:", visitorId, "| Profile Owner:", userId);
+
+      const existingVisit = await prisma.profileVisit.findUnique({
+        where: {
+          profileId_visitorId: {
+            profileId: userId,
+            visitorId: visitorId,
+          },
+        },
+      });
+
+      if (existingVisit) {
+        const updatedVisit = await prisma.profileVisit.update({
+          where: {
+            profileId_visitorId: {
+              profileId: userId,
+              visitorId: visitorId,
+            },
+          },
+          data: {
+            count: { increment: 1 },
+            visitedAt: new Date(),
+          },
+        });
+        console.log("🔁 Visit count incremented:", updatedVisit.count);
+      } else {
+        const newVisit = await prisma.profileVisit.create({
+          data: {
+            profileId: userId,
+            visitorId: visitorId,
+            count: 1,
+            visitedAt: new Date(),
+          },
+        });
+        console.log("🆕 New visit recorded:", newVisit);
+      }
+    } else {
+      console.log("👤 Self-visit or unauthenticated — not tracked");
+    }
+
+    return res.status(200).json(freelancer);
   } catch (err) {
-    console.error("Error fetching freelancer profile:", err);
-    res.status(500).json({ message: "Internal server error" });
+    console.error("❌ Error fetching freelancer profile:", err);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 // Delete freelancer account
 const deleteFreelancerAccount = async (req, res) => {
   const { userId } = req.params;

@@ -1,16 +1,18 @@
 const {
   getFreelancerEarningsGraph,
   getFreelancerMetricsCards,
-} = require("../controllers/freelancer.controller");
+  getFreelancerVisitStats,
+} = require("../controllers/freelancerDashboard.controller");
 
 const { PrismaClient } = require("@prisma/client");
 jest.mock("@prisma/client");
 
 const prisma = new PrismaClient();
 
-const mockRequest = (user = {}, query = {}) => ({
+const mockRequest = (user = {}, query = {}, params = {}) => ({
   user,
   query,
+  params,
 });
 
 const mockResponse = () => {
@@ -26,7 +28,7 @@ describe("Freelancer Controller", () => {
   });
 
   describe("getFreelancerEarningsGraph", () => {
-    it("should return earnings without filters", async () => {
+    it("returns earnings without filters", async () => {
       const req = mockRequest({ userId: "freelancer123" });
       const res = mockResponse();
 
@@ -45,7 +47,7 @@ describe("Freelancer Controller", () => {
       });
     });
 
-    it("should return earnings filtered by year and month", async () => {
+    it("returns filtered earnings by year and month", async () => {
       const req = mockRequest(
         { userId: "freelancer123" },
         { year: "2025", month: "6" }
@@ -62,7 +64,7 @@ describe("Freelancer Controller", () => {
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it("should include comparison data when `compare` is true", async () => {
+    it("returns earnings with previous year comparison when compare=true", async () => {
       const req = mockRequest(
         { userId: "freelancer123" },
         { year: "2025", compare: "true" }
@@ -86,7 +88,7 @@ describe("Freelancer Controller", () => {
       });
     });
 
-    it("should return 500 on query error", async () => {
+    it("returns 500 on database error", async () => {
       const req = mockRequest({ userId: "freelancer123" });
       const res = mockResponse();
 
@@ -102,11 +104,10 @@ describe("Freelancer Controller", () => {
   });
 
   describe("getFreelancerMetricsCards", () => {
-    it("should return metrics with applications and projects", async () => {
+    it("returns application and project stats", async () => {
       const req = mockRequest({ userId: "freelancer123" });
       const res = mockResponse();
 
-      // Mock applications with projects
       prisma.application.findMany.mockResolvedValue([
         {
           status: "approved",
@@ -120,13 +121,9 @@ describe("Freelancer Controller", () => {
           status: "approved",
           project: { progressStatus: "cancelled", deleted: false },
         },
-        {
-          status: "rejected",
-          project: null,
-        },
+        { status: "rejected", project: null },
       ]);
 
-      // Mock groupBy for application status
       prisma.application.groupBy.mockResolvedValue([
         { status: "approved", _count: 3 },
         { status: "rejected", _count: 1 },
@@ -148,7 +145,7 @@ describe("Freelancer Controller", () => {
       });
     });
 
-    it("should return 500 on error", async () => {
+    it("returns 500 on application.findMany error", async () => {
       const req = mockRequest({ userId: "freelancer123" });
       const res = mockResponse();
 
@@ -159,6 +156,60 @@ describe("Freelancer Controller", () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: "Failed to retrieve metrics",
+      });
+    });
+  });
+
+  describe("getFreelancerVisitStats", () => {
+    it("returns total profile visits for freelancer", async () => {
+      const req = mockRequest(
+        { userId: "freelancer123", role: "freelancer" },
+        {},
+        { userId: "freelancer123" }
+      );
+      const res = mockResponse();
+
+      prisma.profileVisit.aggregate = jest.fn().mockResolvedValue({
+        _sum: { count: 10 },
+      });
+
+      await getFreelancerVisitStats(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({ totalVisits: 10 });
+    });
+
+    it("returns 403 for unauthorized user", async () => {
+      const req = mockRequest(
+        { userId: "otherUser", role: "client" },
+        {},
+        { userId: "freelancer123" }
+      );
+      const res = mockResponse();
+
+      await getFreelancerVisitStats(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: "Access denied" });
+    });
+
+    it("returns 500 on aggregate failure", async () => {
+      const req = mockRequest(
+        { userId: "freelancer123", role: "freelancer" },
+        {},
+        { userId: "freelancer123" }
+      );
+      const res = mockResponse();
+
+      prisma.profileVisit.aggregate = jest
+        .fn()
+        .mockRejectedValue(new Error("Aggregation error"));
+
+      await getFreelancerVisitStats(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Internal server error",
       });
     });
   });
