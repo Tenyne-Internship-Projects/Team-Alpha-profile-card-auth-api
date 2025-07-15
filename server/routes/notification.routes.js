@@ -3,10 +3,7 @@ const {
   getNotifications,
   markAsRead,
   markAllAsRead,
-  getUnreadCount,
-  deleteNotification,
-} = require("../controllers/notification.controller");
-const verifyToken = require("../middlewares/authMiddleware");
+
 
 const router = express.Router();
 
