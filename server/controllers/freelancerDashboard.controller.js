@@ -134,8 +134,36 @@ const getFreelancerMetricsCards = async (req, res) => {
     return res.status(500).json({ message: "Failed to retrieve metrics" });
   }
 };
+const getFreelancerVisitStats = async (req, res) => {
+  const { userId } = req.params;
+  const requesterId = req.user?.userId;
+  const requesterRole = req.user?.role;
+
+  try {
+    // Only allow the freelancer to access their own stats
+    if (requesterId !== userId || requesterRole !== "freelancer") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const total = await prisma.profileVisit.aggregate({
+      _sum: {
+        count: true,
+      },
+      where: { profileId: userId },
+    });
+
+    // Log the result
+    console.log("🔍 Profile visit aggregation result:", total);
+
+    res.status(200).json({ totalVisits: total._sum.count || 0 });
+  } catch (err) {
+    console.error("❌ Error fetching profile visits:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
 
 module.exports = {
   getFreelancerEarningsGraph,
   getFreelancerMetricsCards,
+  getFreelancerVisitStats,
 };

@@ -25,4 +25,12 @@ module.exports = {
 
   //  Use Node environment (important for backend testing)
   testEnvironment: "node",
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.js"],
+  coveragePathIgnorePatterns: [
+    "/node_modules/",
+    "server/config/db.js",
+    "server/utils/sendNotification.js",
+    "server/utils/mailer.js",
+    "server/utils/generateToken.js",
+  ],
 };

@@ -45,8 +45,21 @@ const createProject = async (req, res) => {
       include: { Client: { include: { clientProfile: true } } },
     });
 
+    if (!isDraft) {
+      const io = req.app.get("io");
+      await sendNotification({
+        userId: clientId,
+        title: "New Project Created",
+        message: `Your project "${project.title}" has been posted.`,
+        type: "project",
+        io,
+      });
+    }
+
     res.status(201).json({
-      message: isDraft ? "Draft saved successfully" : "Project created successfully",
+      message: isDraft
+        ? "Draft saved successfully"
+        : "Project created successfully",
       data: project,
     });
   } catch (error) {
@@ -190,7 +203,9 @@ const deleteProject = async (req, res) => {
     const project = await prisma.project.findUnique({ where: { id } });
 
     if (!project || project.deleted)
-      return res.status(404).json({ message: "Project not found or already deleted" });
+      return res
+        .status(404)
+        .json({ message: "Project not found or already deleted" });
 
     if (req.user.role !== "admin" && req.user.userId !== project.clientId)
       return res.status(403).json({ message: "Unauthorized" });
@@ -218,7 +233,9 @@ const archiveProject = async (req, res) => {
 
     if (!project) return res.status(404).json({ message: "Not found" });
     if (project.status !== "closed")
-      return res.status(400).json({ message: "Only closed projects can be archived" });
+      return res
+        .status(400)
+        .json({ message: "Only closed projects can be archived" });
     if (req.user.userId !== project.clientId && req.user.role !== "admin")
       return res.status(403).json({ message: "Unauthorized" });
 
@@ -266,27 +283,24 @@ const unarchiveProject = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 const completeProject = async (req, res) => {
   try {
     const { id } = req.params;
     const project = await prisma.project.findUnique({
       where: { id },
       include: {
-        applications: {
-          where: { status: "approved" },
-        },
+        applications: { where: { status: "approved" } },
       },
     });
-
-    if (!project) return res.status(404).json({ message: "Not found" });
+    if (!project) return res.status(404).json({ message: "Project not found" });
     if (project.progressStatus === "completed")
       return res.status(400).json({ message: "Already completed" });
     if (req.user.userId !== project.clientId && req.user.role !== "admin")
       return res.status(403).json({ message: "Unauthorized" });
 
     const app = project.applications[0];
-    if (!app) return res.status(400).json({ message: "No approved freelancer" });
+    if (!app)
+      return res.status(400).json({ message: "No approved freelancer" });
 
     const payment = await prisma.payment.create({
       data: {
@@ -309,17 +323,19 @@ const completeProject = async (req, res) => {
     });
 
     const io = req.app.get("io");
+
     await sendNotification({
       userId: updated.clientId,
       title: "Project Completed",
-      message: `Your project \"${updated.title}\" has been marked as completed.`,
+      message: `Your project "${updated.title}" has been marked as completed.`,
       type: "project",
       io,
     });
+
     await sendNotification({
       userId: app.freelancerId,
       title: "Project Completed",
-      message: `The project \"${updated.title}\" you worked on has been completed.`,
+      message: `You have completed project "${updated.title}" and been paid.`,
       type: "project",
       io,
     });
@@ -342,12 +358,9 @@ const updateProjectProgress = async (req, res) => {
     const project = await prisma.project.findUnique({
       where: { id },
       include: {
-        applications: {
-          where: { status: "approved" },
-        },
+        applications: { where: { status: "approved" } },
       },
     });
-
     if (!project || project.deleted)
       return res.status(404).json({ message: "Project not found" });
     if (req.user.userId !== project.clientId && req.user.role !== "admin")
@@ -363,10 +376,11 @@ const updateProjectProgress = async (req, res) => {
     });
 
     const io = req.app.get("io");
+
     await sendNotification({
       userId: updatedProject.clientId,
       title: "Project Status Updated",
-      message: `Project \"${updatedProject.title}\" is now marked as ${progressStatus}.`,
+      message: `Project "${updatedProject.title}" is now marked as ${progressStatus}.`,
       type: "project_status",
       io,
     });
@@ -375,7 +389,7 @@ const updateProjectProgress = async (req, res) => {
       await sendNotification({
         userId: project.applications[0].freelancerId,
         title: "Project Status Updated",
-        message: `Project \"${updatedProject.title}\" is now marked as completed.`,
+        message: `Project "${updatedProject.title}" is now marked as completed.`,
         type: "project_status",
         io,
       });
@@ -390,7 +404,6 @@ const updateProjectProgress = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 module.exports = {
   createProject,
   getAllProjects,

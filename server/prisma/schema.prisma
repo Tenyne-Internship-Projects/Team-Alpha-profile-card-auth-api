@@ -31,7 +31,6 @@ enum ProjectProgressStatus {
   completed
   cancelled
 }
-
 model User {
   id                       String             @id @default(uuid())
   fullname                 String
@@ -53,10 +52,15 @@ model User {
   freelancerProfile        FreelancerProfile? @relation("FreelancerProfileUser")
   clientProfile            ClientProfile?     @relation("ClientProfileUser")
   payments                 Payment[]          @relation("FreelancerPayments")
-  notifications            Notification[]     // NEW: Notifications for this user
+  notifications            Notification[]     
+
+  // New Relations
+  profileVisits            ProfileVisit[]     @relation("VisitedProfile") // Visits *to* this user's profile
+  profileViews             ProfileVisit[]     @relation("ProfileVisitor") // Visits *by* this user
 
   @@map("users")
 }
+
 
 model FreelancerProfile {
   id                String   @id @default(uuid())
@@ -102,6 +106,19 @@ model ClientProfile {
   user               User     @relation("ClientProfileUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("client_profiles")
+}
+model ProfileVisit {
+  id          String   @id @default(uuid())
+  profileId   String
+  visitorId   String
+  visitedAt   DateTime @default(now())
+  count       Int      @default(1)
+
+  profile     User     @relation("VisitedProfile", fields: [profileId], references: [id], onDelete: Cascade)
+  visitor     User     @relation("ProfileVisitor", fields: [visitorId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, visitorId])
+  @@map("profile_visits")
 }
 
 model Project {

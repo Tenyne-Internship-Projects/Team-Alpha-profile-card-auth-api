@@ -1,4 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
+const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
 const sendNotification = async ({ userId, title, message, type, io }) => {
@@ -8,17 +8,22 @@ const sendNotification = async ({ userId, title, message, type, io }) => {
         userId,
         title,
         message,
-        type
-      }
+        type,
+      },
     });
 
+    // Emit to user's Socket.IO room
     if (io) {
-      io.to(userId).emit('new_notification', notification);
+      console.log(`📤 Emitting notification to room ${userId}`);
+      io.to(userId).emit("new_notification", notification);
+    } else {
+      console.warn("⚠️ Socket.IO instance not available");
     }
 
     return notification;
   } catch (error) {
-    console.error('Error sending notification:', error.message);
+    console.error("❌ Error sending notification:", error.message);
+    throw error;
   }
 };
 
