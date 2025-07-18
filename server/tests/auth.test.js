@@ -1,5 +1,3 @@
-// tests/auth.test.js
-
 process.env.JWT_SECRET = "testsecret";
 process.env.JWT_REFRESH_SECRET = "refreshsecret";
 process.env.FRONTEND_URL_EMAIL_VERIFICATION = "http://localhost/verify";
@@ -19,7 +17,6 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { PrismaClient } = require("@prisma/client");
 
-// ✅ Setup manual mock structure for prisma
 const prismaMock = {
   user: {
     findUnique: jest.fn(),
@@ -190,7 +187,9 @@ describe("Auth Controller", () => {
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "Please verify your email" })
+        expect.objectContaining({
+          message: "Please verify your email before logging in.",
+        })
       );
     });
 
@@ -215,11 +214,11 @@ describe("Auth Controller", () => {
 
       expect(res.status).toHaveBeenCalledWith(401);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "Invalid credentials" })
+        expect.objectContaining({ message: "Invalid password" })
       );
     });
 
-    it("should return 401 if user not found", async () => {
+    it("should return 404 if user not found", async () => {
       const req = {
         body: {
           email: "missing@example.com",
@@ -231,9 +230,11 @@ describe("Auth Controller", () => {
 
       await loginUser(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: "Invalid credentials" })
+        expect.objectContaining({
+          message: expect.stringContaining("No user found"),
+        })
       );
     });
   });

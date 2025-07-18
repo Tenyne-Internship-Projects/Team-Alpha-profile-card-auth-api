@@ -112,7 +112,7 @@ const registerUser = async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "Strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     // Respond with public data only
@@ -164,7 +164,6 @@ const verifyEmail = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
 // RESEND VERIFICATION EMAIL
 const resendVerificationEmail = async (req, res) => {
   const { email } = req.body;
