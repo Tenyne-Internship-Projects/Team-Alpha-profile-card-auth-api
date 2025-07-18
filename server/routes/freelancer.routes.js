@@ -8,6 +8,7 @@ const {
   getFreelancerEarningsGraph,
   getFreelancerMetricsCards,
   getFreelancerVisitStats,
+  getFreelancerPaymentStatus,
 } = require("../controllers/freelancerDashboard.controller");
 
 /**
@@ -195,11 +196,59 @@ router.get(
  *       403:
  *         description: Forbidden - Trying to access another user's stats
  */
+
 router.get(
   "/profile-visits/:userId",
   verifyToken,
   authorizeRoles("freelancer"),
   getFreelancerVisitStats
+);
+
+/**
+ * @swagger
+ * /api/freelancer-dashboard/payment-status:
+ *   get:
+ *     summary: Get freelancer payment status (pending & completed)
+ *     tags: [Freelancer Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Payment status summary
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 freelancerId:
+ *                   type: string
+ *                 payments:
+ *                   type: object
+ *                   properties:
+ *                     pending:
+ *                       type: object
+ *                       properties:
+ *                         count:
+ *                           type: integer
+ *                         totalBudget:
+ *                           type: number
+ *                     completed:
+ *                       type: object
+ *                       properties:
+ *                         count:
+ *                           type: integer
+ *                         totalBudget:
+ *                           type: number
+ *       401:
+ *         description: Unauthorized - Missing or invalid token
+ *       403:
+ *         description: Forbidden - Insufficient permissions
+ */
+router.get(
+  "/payment-status",
+  verifyToken,
+  authorizeRoles("freelancer"),
+  getFreelancerPaymentStatus
 );
 
 module.exports = router;

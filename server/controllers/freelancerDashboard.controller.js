@@ -1,6 +1,5 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
-
 const { startOfMonth, endOfMonth } = require("date-fns");
 
 const getFreelancerEarningsGraph = async (req, res) => {
@@ -161,9 +160,70 @@ const getFreelancerVisitStats = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+const getFreelancerPaymentStatus = async (req, res) => {
+  try {
+    const freelancerId = req.user.userId;
+
+    // Fetch all approved applications for this freelancer with project and payment info
+    const approvedApps = await prisma.application.findMany({
+      where: {
+        freelancerId,
+        status: "approved",
+        project: {
+          deleted: false,
+        },
+      },
+      include: {
+        project: {
+          include: {
+            payment: true,
+          },
+        },
+      },
+    });
+
+    let pendingPaymentsCount = 0;
+    let pendingPaymentsTotal = 0;
+
+    let completedPaymentsCount = 0;
+    let completedPaymentsTotal = 0;
+
+    for (const app of approvedApps) {
+      const project = app.project;
+
+      if (project.progressStatus === "ongoing" && !project.paymentId) {
+        pendingPaymentsCount++;
+        pendingPaymentsTotal += project.budget;
+      } else if (project.progressStatus === "completed" && project.paymentId) {
+        completedPaymentsCount++;
+        completedPaymentsTotal += project.budget;
+      }
+    }
+
+    return res.status(200).json({
+      freelancerId,
+      payments: {
+        pending: {
+          count: pendingPaymentsCount,
+          totalBudget: pendingPaymentsTotal,
+        },
+        completed: {
+          count: completedPaymentsCount,
+          totalBudget: completedPaymentsTotal,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("[Payment Status Error]", error);
+    return res
+      .status(500)
+      .json({ message: "Failed to retrieve payment status" });
+  }
+};
 
 module.exports = {
   getFreelancerEarningsGraph,
   getFreelancerMetricsCards,
   getFreelancerVisitStats,
+  getFreelancerPaymentStatus,
 };
