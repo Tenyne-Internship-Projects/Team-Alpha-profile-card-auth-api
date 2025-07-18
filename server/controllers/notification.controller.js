@@ -8,7 +8,7 @@ const getNotifications = async (req, res) => {
       where: { userId: req.user.userId },
       orderBy: { createdAt: "desc" },
       include: {
-        sender: {
+        user: {
           select: {
             id: true,
             fullname: true,
