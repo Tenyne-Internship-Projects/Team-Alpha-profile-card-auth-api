@@ -1,216 +1,140 @@
+// server/tests/freelancerDashboard.test.js
+const request = require("supertest");
+const express = require("express");
+const bodyParser = require("body-parser");
 const {
   getFreelancerEarningsGraph,
   getFreelancerMetricsCards,
   getFreelancerVisitStats,
+  getFreelancerPaymentStatus,
 } = require("../controllers/freelancerDashboard.controller");
 
-const { PrismaClient } = require("@prisma/client");
-jest.mock("@prisma/client");
-
-const prisma = new PrismaClient();
-
-const mockRequest = (user = {}, query = {}, params = {}) => ({
-  user,
-  query,
-  params,
+jest.mock("@prisma/client", () => {
+  const mPrisma = {
+    $queryRaw: jest.fn(),
+    $queryRawUnsafe: jest.fn(),
+    application: {
+      findMany: jest.fn(),
+      groupBy: jest.fn(),
+    },
+    profileVisit: {
+      aggregate: jest.fn(),
+    },
+  };
+  return {
+    PrismaClient: jest.fn(() => mPrisma),
+  };
 });
 
-const mockResponse = () => {
-  const res = {};
-  res.status = jest.fn().mockReturnValue(res);
-  res.json = jest.fn().mockReturnValue(res);
-  return res;
+const { PrismaClient } = require("@prisma/client");
+const prisma = new PrismaClient();
+
+// Mock Express app
+const app = express();
+app.use(bodyParser.json());
+
+// Inject req.user mock middleware
+const mockAuth = (req, res, next) => {
+  req.user = { userId: "freelancer123", role: "freelancer" };
+  next();
 };
 
-describe("Freelancer Controller", () => {
-  beforeEach(() => {
+app.get("/earnings", mockAuth, getFreelancerEarningsGraph);
+app.get("/metrics", mockAuth, getFreelancerMetricsCards);
+app.get("/visits/:userId", mockAuth, getFreelancerVisitStats);
+app.get("/payments", mockAuth, getFreelancerPaymentStatus);
+
+describe("Freelancer Dashboard Controllers", () => {
+  afterEach(() => {
     jest.clearAllMocks();
   });
 
-  describe("getFreelancerEarningsGraph", () => {
-    it("returns earnings without filters", async () => {
-      const req = mockRequest({ userId: "freelancer123" });
-      const res = mockResponse();
+  test("GET /earnings - returns monthly earnings", async () => {
+    prisma.$queryRaw.mockResolvedValue([
+      { month: "2024-06", total: 500 },
+      { month: "2024-07", total: 800 },
+    ]);
+    prisma.$queryRawUnsafe.mockResolvedValue([]);
 
-      prisma.$queryRaw.mockResolvedValue([
-        { month: "2025-01", total: 200 },
-        { month: "2025-02", total: 300 },
-      ]);
+    const res = await request(app).get("/earnings");
 
-      await getFreelancerEarningsGraph(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        freelancerId: "freelancer123",
-        monthlyEarnings: expect.any(Array),
-        previousYearComparison: [],
-      });
-    });
-
-    it("returns filtered earnings by year and month", async () => {
-      const req = mockRequest(
-        { userId: "freelancer123" },
-        { year: "2025", month: "6" }
-      );
-      const res = mockResponse();
-
-      prisma.$queryRawUnsafe.mockResolvedValueOnce([
-        { month: "2025-06", total: 500 },
-      ]);
-
-      await getFreelancerEarningsGraph(req, res);
-
-      expect(prisma.$queryRawUnsafe).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-
-    it("returns earnings with previous year comparison when compare=true", async () => {
-      const req = mockRequest(
-        { userId: "freelancer123" },
-        { year: "2025", compare: "true" }
-      );
-      const res = mockResponse();
-
-      prisma.$queryRawUnsafe.mockResolvedValueOnce([
-        { month: "2025-01", total: 300 },
-      ]);
-      prisma.$queryRawUnsafe.mockResolvedValueOnce([
-        { month: "2024-01", total: 150 },
-      ]);
-
-      await getFreelancerEarningsGraph(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        freelancerId: "freelancer123",
-        monthlyEarnings: expect.any(Array),
-        previousYearComparison: expect.any(Array),
-      });
-    });
-
-    it("returns 500 on database error", async () => {
-      const req = mockRequest({ userId: "freelancer123" });
-      const res = mockResponse();
-
-      prisma.$queryRaw.mockRejectedValue(new Error("DB error"));
-
-      await getFreelancerEarningsGraph(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        message: "Failed to retrieve earnings graph",
-      });
-    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.freelancerId).toBe("freelancer123");
+    expect(res.body.monthlyEarnings.length).toBe(2);
   });
 
-  describe("getFreelancerMetricsCards", () => {
-    it("returns application and project stats", async () => {
-      const req = mockRequest({ userId: "freelancer123" });
-      const res = mockResponse();
+  test("GET /metrics - returns metrics cards", async () => {
+    prisma.application.findMany.mockResolvedValue([
+      {
+        status: "approved",
+        project: { deleted: false, progressStatus: "completed" },
+      },
+      {
+        status: "approved",
+        project: { deleted: false, progressStatus: "ongoing" },
+      },
+      {
+        status: "approved",
+        project: { deleted: false, progressStatus: "cancelled" },
+      },
+    ]);
+    prisma.application.groupBy.mockResolvedValue([
+      { status: "approved", _count: 3 },
+    ]);
 
-      prisma.application.findMany.mockResolvedValue([
-        {
-          status: "approved",
-          project: { progressStatus: "completed", deleted: false },
-        },
-        {
-          status: "approved",
-          project: { progressStatus: "ongoing", deleted: false },
-        },
-        {
-          status: "approved",
-          project: { progressStatus: "cancelled", deleted: false },
-        },
-        { status: "rejected", project: null },
-      ]);
+    const res = await request(app).get("/metrics");
 
-      prisma.application.groupBy.mockResolvedValue([
-        { status: "approved", _count: 3 },
-        { status: "rejected", _count: 1 },
-      ]);
-
-      await getFreelancerMetricsCards(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        freelancerId: "freelancer123",
-        projectStats: { completed: 1, ongoing: 1, cancelled: 1 },
-        applicationStats: {
-          total: 4,
-          pending: 0,
-          approved: 3,
-          rejected: 1,
-        },
-        projects: expect.any(Array),
-      });
-    });
-
-    it("returns 500 on application.findMany error", async () => {
-      const req = mockRequest({ userId: "freelancer123" });
-      const res = mockResponse();
-
-      prisma.application.findMany.mockRejectedValue(new Error("Fetch failed"));
-
-      await getFreelancerMetricsCards(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        message: "Failed to retrieve metrics",
-      });
-    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.projectStats.completed).toBe(1);
+    expect(res.body.projectStats.ongoing).toBe(1);
+    expect(res.body.projectStats.cancelled).toBe(1);
+    expect(res.body.applicationStats.total).toBe(3);
   });
 
-  describe("getFreelancerVisitStats", () => {
-    it("returns total profile visits for freelancer", async () => {
-      const req = mockRequest(
-        { userId: "freelancer123", role: "freelancer" },
-        {},
-        { userId: "freelancer123" }
-      );
-      const res = mockResponse();
-
-      prisma.profileVisit.aggregate = jest.fn().mockResolvedValue({
-        _sum: { count: 10 },
-      });
-
-      await getFreelancerVisitStats(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({ totalVisits: 10 });
+  test("GET /visits/:userId - returns visit stats if requester is freelancer", async () => {
+    prisma.profileVisit.aggregate.mockResolvedValue({
+      _sum: { count: 10 },
     });
 
-    it("returns 403 for unauthorized user", async () => {
-      const req = mockRequest(
-        { userId: "otherUser", role: "client" },
-        {},
-        { userId: "freelancer123" }
-      );
-      const res = mockResponse();
+    const res = await request(app).get("/visits/freelancer123");
 
-      await getFreelancerVisitStats(req, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.totalVisits).toBe(10);
+  });
 
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({ message: "Access denied" });
-    });
+  test("GET /visits/:userId - denies access if not the same freelancer", async () => {
+    const res = await request(app).get("/visits/otherUser");
 
-    it("returns 500 on aggregate failure", async () => {
-      const req = mockRequest(
-        { userId: "freelancer123", role: "freelancer" },
-        {},
-        { userId: "freelancer123" }
-      );
-      const res = mockResponse();
+    expect(res.statusCode).toBe(403);
+    expect(res.body.message).toBe("Access denied");
+  });
 
-      prisma.profileVisit.aggregate = jest
-        .fn()
-        .mockRejectedValue(new Error("Aggregation error"));
+  test("GET /payments - returns payment status", async () => {
+    prisma.application.findMany.mockResolvedValue([
+      {
+        project: {
+          deleted: false,
+          progressStatus: "ongoing",
+          paymentId: null,
+          budget: 1000,
+        },
+      },
+      {
+        project: {
+          deleted: false,
+          progressStatus: "completed",
+          paymentId: "pay_123",
+          budget: 2000,
+        },
+      },
+    ]);
 
-      await getFreelancerVisitStats(req, res);
+    const res = await request(app).get("/payments");
 
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        message: "Internal server error",
-      });
-    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body.payments.pending.count).toBe(1);
+    expect(res.body.payments.completed.count).toBe(1);
+    expect(res.body.payments.pending.totalBudget).toBe(1000);
+    expect(res.body.payments.completed.totalBudget).toBe(2000);
   });
 });

@@ -54,9 +54,8 @@ model User {
   payments                 Payment[]          @relation("FreelancerPayments")
   notifications            Notification[]     
 
-  // New Relations
-  profileVisits            ProfileVisit[]     @relation("VisitedProfile") // Visits *to* this user's profile
-  profileViews             ProfileVisit[]     @relation("ProfileVisitor") // Visits *by* this user
+  profileVisits            ProfileVisit[]     @relation("VisitedProfile") 
+  profileViews             ProfileVisit[]     @relation("ProfileVisitor") 
 
   @@map("users")
 }

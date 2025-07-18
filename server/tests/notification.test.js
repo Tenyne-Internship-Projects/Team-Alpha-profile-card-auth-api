@@ -148,7 +148,6 @@ describe("Notification Controller", () => {
     const res = mockResponse();
 
     await deleteNotification(req, res);
-
     expect(res.status).toHaveBeenCalledWith(404);
   });
 });

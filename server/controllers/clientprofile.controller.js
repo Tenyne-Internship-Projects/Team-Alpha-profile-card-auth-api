@@ -15,7 +15,6 @@ const updateClientProfile = async (req, res) => {
     companyAddress,
     hiringCategories,
   } = req.body;
-
   let parsedCategories = [];
   try {
     parsedCategories = Array.isArray(hiringCategories)

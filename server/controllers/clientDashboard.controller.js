@@ -78,7 +78,6 @@ const getClientProjectStatusMetrics = async (req, res) => {
     const cancelled = allProjects.filter(
       (p) => p.progressStatus === "cancelled"
     ).length;
-
     // Categorize by status
     const open = allProjects.filter((p) => p.status === "open").length;
     const closed = allProjects.filter((p) => p.status === "closed").length;
